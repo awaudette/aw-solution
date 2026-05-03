@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --blue: #0362E3;
+  --blue-dark: #001C5D;
+  --grey: #2E2E2F;
+  --white: #F0F4FF;
+  --blue-glow: rgba(3, 98, 227, 0.3);
+  --blue-subtle: rgba(3, 98, 227, 0.1);
+}
+
+html {
+  background: #000;
+  color: var(--white);
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #000;
+  color: var(--white);
+  font-family: var(--font-sora), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}

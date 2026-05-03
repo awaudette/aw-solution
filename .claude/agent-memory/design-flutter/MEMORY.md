@@ -1,0 +1,1 @@
+- [MAISON demo app](project_maison_demo.md) — dark luxury design system, gold/charcoal palette, 2 screens completed (login + homepage)

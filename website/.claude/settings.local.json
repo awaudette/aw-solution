@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(taskkill /PID 63392 /F)",
+      "Bash(curl *)",
+      "Bash(npx tsc *)",
+      "Bash(not exist *)",
+      "Bash(cmd /c \"npm run dev\")",
+      "Bash(npx next *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
