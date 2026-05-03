@@ -186,7 +186,7 @@ export default function DashboardFeatures() {
         >
           {/* Left: two phones side by side */}
           <div
-            className="relative flex items-end justify-center w-full max-w-[260px] mx-auto lg:mx-0 lg:flex-shrink-0 lg:w-auto"
+            className="relative hidden lg:flex items-end justify-center w-full max-w-[260px] mx-auto lg:mx-0 lg:flex-shrink-0 lg:w-auto"
           >
             {/* Blue glow */}
             <div
@@ -229,6 +229,21 @@ export default function DashboardFeatures() {
             >
               <PhoneMockup src="/images/alerte.jpg" alt="Alertes automatisées" />
             </motion.div>
+          </div>
+
+          {/* Mobile: two phones side by side */}
+          <div
+            className="flex lg:hidden"
+            style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", position: "relative", padding: "20px 0" }}
+          >
+            <div style={{ width: "42vw", flexShrink: 0, zIndex: 1, transform: "rotateZ(-3deg)", borderRadius: 32, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/alerte.jpg" alt="Alertes" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            </div>
+            <div style={{ width: "42vw", flexShrink: 0, zIndex: 2, marginLeft: -20, transform: "rotateZ(3deg)", borderRadius: 32, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/alerte1.jpg" alt="Alertes secondaire" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            </div>
           </div>
 
           {/* Right: text content */}
@@ -454,7 +469,7 @@ export default function DashboardFeatures() {
 
           {/* Right: two phones side by side */}
           <div
-            className="relative flex items-end justify-center w-full max-w-[260px] mx-auto lg:mx-0 lg:flex-shrink-0 lg:w-auto"
+            className="relative hidden lg:flex items-end justify-center w-full max-w-[260px] mx-auto lg:mx-0 lg:flex-shrink-0 lg:w-auto"
           >
             {/* Blue glow */}
             <div
@@ -498,6 +513,21 @@ export default function DashboardFeatures() {
               <PhoneMockup src="/images/segment.jpg" alt="Segmentation clients" />
             </motion.div>
           </div>
+
+          {/* Mobile: two phones side by side */}
+          <div
+            className="flex lg:hidden"
+            style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", position: "relative", padding: "20px 0" }}
+          >
+            <div style={{ width: "42vw", flexShrink: 0, zIndex: 1, transform: "rotateZ(-3deg)", borderRadius: 32, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/segment.jpg" alt="Segmentation" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            </div>
+            <div style={{ width: "42vw", flexShrink: 0, zIndex: 2, marginLeft: -20, transform: "rotateZ(3deg)", borderRadius: 32, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/segment1.jpg" alt="Segmentation secondaire" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            </div>
+          </div>
         </div>
 
         {/* Analytiques sub-section */}
@@ -507,7 +537,7 @@ export default function DashboardFeatures() {
         >
           {/* Left: two phones side by side */}
           <div
-            className="relative flex items-end justify-center w-full max-w-[260px] mx-auto lg:mx-0 lg:flex-shrink-0 lg:w-auto"
+            className="relative hidden lg:flex items-end justify-center w-full max-w-[260px] mx-auto lg:mx-0 lg:flex-shrink-0 lg:w-auto"
           >
             {/* Blue glow */}
             <div
@@ -550,6 +580,21 @@ export default function DashboardFeatures() {
             >
               <PhoneMockup src="/images/analytics3.jpg" alt="Analytiques avancées" />
             </motion.div>
+          </div>
+
+          {/* Mobile: two phones side by side */}
+          <div
+            className="flex lg:hidden"
+            style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", position: "relative", padding: "20px 0" }}
+          >
+            <div style={{ width: "42vw", flexShrink: 0, zIndex: 1, transform: "rotateZ(-3deg)", borderRadius: 32, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/analytics3.jpg" alt="Analytiques" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            </div>
+            <div style={{ width: "42vw", flexShrink: 0, zIndex: 2, marginLeft: -20, transform: "rotateZ(3deg)", borderRadius: 32, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/analytics2.jpg" alt="Analytiques secondaire" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            </div>
           </div>
 
           {/* Right: text content */}

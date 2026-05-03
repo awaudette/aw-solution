@@ -27,3 +27,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide on mobile, show as flex on lg+ — overrides inline display:flex */
+.lg-only-flex {
+  display: none !important;
+}
+@media (min-width: 1024px) {
+  .lg-only-flex {
+    display: flex !important;
+  }
+}

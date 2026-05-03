@@ -6,15 +6,13 @@ import Link from "next/link";
 
 const TITLE_LINES = [
   [
-    { text: "Vos", accent: false },
-    { text: "clients", accent: false },
+    { text: "Transformez", accent: false },
+    { text: "chaque", accent: false },
   ],
   [
-    { text: "disparaissent.", accent: true },
-  ],
-  [
-    { text: "Vous", accent: false },
-    { text: "regardez.", accent: false },
+    { text: "visite", accent: false },
+    { text: "en", accent: false },
+    { text: "habitude.", accent: true },
   ],
 ];
 
@@ -315,8 +313,8 @@ export default function Hero() {
 
             {/* Title */}
             <h1
+              className="text-[clamp(1.8rem,8vw,2.8rem)] md:text-[clamp(2.2rem,3.5vw,3.5rem)]"
               style={{
-                fontSize: "clamp(2.8rem, 5vw, 4.25rem)",
                 fontWeight: 800,
                 fontFamily: "var(--font-sora)",
                 lineHeight: 1.08,
@@ -357,7 +355,7 @@ export default function Hero() {
               {...fu(subtitleDelay)}
               style={{ fontSize: "1.1rem", color: "rgba(240,244,255,0.5)", lineHeight: 1.65, margin: 0, maxWidth: "28rem" }}
             >
-              Sans données, sans contact, vous gérez votre entreprise à l&apos;aveugle.
+              Sans données, sans contact, vous gérez votre entreprise à l&apos;aveugle. La fidélité, ce n&apos;est pas du hasard.
             </motion.p>
 
             {/* CTA */}
