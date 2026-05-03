@@ -154,7 +154,7 @@ export default function Hero() {
           {/* Title */}
           <h1
             style={{
-              fontSize: "clamp(2.8rem, 5vw, 4.8rem)",
+              fontSize: "clamp(2.8rem, 5vw, 4.25rem)",
               fontWeight: 800,
               fontFamily: "var(--font-sora)",
               lineHeight: 1.08,
@@ -253,6 +253,7 @@ export default function Hero() {
             alignItems: "flex-end",
             justifyContent: "center",
             gap: "-20px",
+            transform: "translateX(-3rem) translateY(2rem)",
           }}
         >
           {/* Left phone */}
@@ -266,7 +267,7 @@ export default function Hero() {
               animate={{ y: [0, -12, 0] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               style={{
-                width: 240,
+                width: 255,
                 borderRadius: 36,
                 border: "1px solid rgba(255,255,255,0.15)",
                 overflow: "hidden",
@@ -318,7 +319,7 @@ export default function Hero() {
               animate={{ y: [-12, 0, -12] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               style={{
-                width: 260,
+                width: 275,
                 borderRadius: 36,
                 border: "1px solid rgba(255,255,255,0.15)",
                 overflow: "hidden",
