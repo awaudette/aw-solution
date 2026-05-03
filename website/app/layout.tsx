@@ -19,9 +19,6 @@ export const metadata: Metadata = {
   title: "AW Solution — CRM & Fidélisation pour PME",
   description:
     "La seule solution au Québec qui combine app mobile branded, dashboard CRM, segmentation comportementale et alertes automatisées.",
-  icons: {
-    icon: "/images/logo.png",
-  },
 };
 
 export default function RootLayout({
