@@ -304,7 +304,7 @@ export default function AppFeatures() {
               <div
                 key={img.src}
                 style={{
-                  width: "65vw",
+                  width: "50vw",
                   flexShrink: 0,
                   scrollSnapAlign: "center",
                   borderRadius: 36,

@@ -34,61 +34,55 @@ function mobileFadeUp(delay: number) {
   };
 }
 
-function IntroPhone({
-  src,
-  alt,
-  rotateYInitial,
-  exitDir,
-  isExit,
-}: {
-  src: string;
-  alt: string;
-  rotateYInitial: number;
-  exitDir: -1 | 1;
-  isExit: boolean;
-}) {
+function IntroStars() {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    type Star = { x: number; y: number; vx: number; vy: number; r: number };
+    const stars: Star[] = Array.from({ length: 80 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.2,
+      vy: (Math.random() - 0.5) * 0.2,
+      r: Math.random() * 0.6 + 0.4,
+    }));
+
+    let raf: number;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const s of stars) {
+        s.x += s.vx;
+        s.y += s.vy;
+        if (s.x < 0) s.x = canvas.width;
+        else if (s.x > canvas.width) s.x = 0;
+        if (s.y < 0) s.y = canvas.height;
+        else if (s.y > canvas.height) s.y = 0;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   return (
-    <motion.div
-      style={{ transformPerspective: 800 }}
-      initial={{ opacity: 0, rotateY: rotateYInitial, scale: 0.85 }}
-      animate={
-        isExit
-          ? { x: `${exitDir * 120}vw`, scale: 0.6, opacity: 0 }
-          : { opacity: 1, rotateY: 0, scale: 1 }
-      }
-      transition={
-        isExit
-          ? { duration: 0.6, ease: "easeIn" }
-          : { duration: 0.8, ease }
-      }
-    >
-      <motion.div
-        animate={{ y: [0, -8, 0] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          width: "42vw",
-          borderRadius: 36,
-          border: "1px solid rgba(255,255,255,0.15)",
-          overflow: "hidden",
-          boxShadow: "0 0 80px rgba(20,173,215,0.3)",
-          background: "#0a0a0a",
-          position: "relative",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt={alt}
-          style={{
-            width: "100%",
-            aspectRatio: "9/19.5",
-            objectFit: "cover",
-            objectPosition: "top center",
-            display: "block",
-          }}
-        />
-      </motion.div>
-    </motion.div>
+    <canvas
+      ref={ref}
+      aria-hidden
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+    />
   );
 }
 
@@ -105,11 +99,11 @@ export default function Hero() {
       return;
     }
     setIsMobile(true);
-    const t1 = setTimeout(() => setPhase("exit"), 2300);
+    const t1 = setTimeout(() => setPhase("exit"), 3200);
     const t2 = setTimeout(() => {
       setPhase("hero");
       setHeroKey((k) => k + 1);
-    }, 2900);
+    }, 3800);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
@@ -185,60 +179,107 @@ export default function Hero() {
               background: "#020818",
               zIndex: 200,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
+              overflow: "hidden",
             }}
           >
-            {/* Radial glow centered behind phones */}
+            {/* Stars */}
+            <IntroStars />
+
+            {/* Radial glow */}
             <div
               aria-hidden
               style={{
                 position: "absolute",
                 inset: 0,
-                background: "radial-gradient(circle at center, rgba(20,173,215,0.25) 0%, transparent 70%)",
+                background: "radial-gradient(circle at center, rgba(20,173,215,0.3) 0%, transparent 65%)",
                 pointerEvents: "none",
               }}
             />
 
-            {/* Slowly rotating ring */}
+            {/* Rotating ring */}
             <motion.div
               aria-hidden
-              animate={{ rotate: 360 }}
-              transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, rotate: 360 }}
+              transition={{
+                opacity: { duration: 0.5, delay: 0.8 },
+                rotate: { duration: 12, repeat: Infinity, ease: "linear" },
+              }}
               style={{
                 position: "absolute",
-                width: 370,
-                height: 370,
+                width: 300,
+                height: 300,
                 borderRadius: "50%",
-                border: "1px solid rgba(20,173,215,0.15)",
+                border: "1px solid rgba(20,173,215,0.2)",
                 pointerEvents: "none",
               }}
             />
 
-            {/* Phone pair */}
-            <div
-              style={{
-                display: "flex",
-                gap: "1rem",
-                position: "relative",
-                zIndex: 1,
-                alignItems: "flex-end",
-              }}
-            >
-              <IntroPhone
-                src="/images/HomePagePokeStation.jpg"
-                alt="AW Solution app client"
-                rotateYInitial={25}
-                exitDir={-1}
-                isExit={phase === "exit"}
-              />
-              <IntroPhone
-                src="/images/HomePageGolf.jpg"
-                alt="AW Solution dashboard"
-                rotateYInitial={-25}
-                exitDir={1}
-                isExit={phase === "exit"}
-              />
+            {/* Logo + text */}
+            <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/images/logo.png" alt="AW Solution" style={{ width: 80, display: "block" }} />
+              </motion.div>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                style={{ fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "4px", margin: "12px 0 0 0", fontFamily: "var(--font-sora)" }}
+              >
+                AW Solution
+              </motion.p>
+
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.3em", marginTop: 16, maxWidth: 260, textAlign: "center" }}>
+                {["Transformez", "chaque", "visite", "en", "habitude."].map((word, i) => (
+                  <motion.span
+                    key={word}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.8 + i * 0.08, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+                    style={{ fontSize: 14, color: "rgba(255,255,255,0.7)" }}
+                  >
+                    {word}
+                  </motion.span>
+                ))}
+              </div>
+            </div>
+
+            {/* Phones — Phase 3 */}
+            <div style={{ position: "relative", zIndex: 1, display: "flex", gap: "1rem", marginTop: 32, alignItems: "flex-end" }}>
+              {/* Left phone */}
+              <motion.div
+                style={{ transformPerspective: 800 }}
+                initial={{ opacity: 0, y: 120 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.9, delay: 1.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+              >
+                <div style={{ width: "38vw", borderRadius: 36, border: "1px solid rgba(255,255,255,0.15)", overflow: "hidden", boxShadow: "0 0 80px rgba(20,173,215,0.3)", background: "#0a0a0a", transform: "rotateY(8deg) rotateZ(-2deg)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/HomePagePokeStation.jpg" alt="AW Solution app" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+                </div>
+              </motion.div>
+
+              {/* Right phone */}
+              <motion.div
+                style={{ transformPerspective: 800 }}
+                initial={{ opacity: 0, y: 120 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.9, delay: 1.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+              >
+                <div style={{ width: "38vw", borderRadius: 36, border: "1px solid rgba(255,255,255,0.15)", overflow: "hidden", boxShadow: "0 0 80px rgba(20,173,215,0.3)", background: "#0a0a0a", transform: "rotateY(-8deg) rotateZ(2deg)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/HomePageGolf.jpg" alt="AW Solution dashboard" style={{ width: "100%", aspectRatio: "9/19.5", objectFit: "cover", objectPosition: "top center", display: "block" }} />
+                </div>
+              </motion.div>
             </div>
           </motion.div>
         )}
