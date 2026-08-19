@@ -5,9 +5,9 @@ const nextConfig: NextConfig = {
   transpilePackages: ["chart.js", "react-chartjs-2"],
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
-  // firebase-admin et ses dépendances (jose, jwks-rsa) sont des modules ESM
-  // que le bundler Next.js ne peut pas inliner — on les charge à l'exécution.
-  serverExternalPackages: ["firebase-admin"],
+  // firebase-admin et ses dépendances ESM ne peuvent pas être bundlés par Webpack.
+  // Next.js 16 (Webpack) : serverExternalPackages (stable, anciennement experimental.serverComponentsExternalPackages)
+  serverExternalPackages: ["firebase-admin", "jose", "jwks-rsa"],
 };
 
 export default nextConfig;
