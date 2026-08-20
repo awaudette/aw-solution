@@ -473,3 +473,31 @@ export interface AppConfigDoc {
   derniereSync:      Date;
   statutSync:        "ok" | "erreur" | "en_cours";
 }
+
+// ─── Jeton de synchronisation ──────────────────────────────────────────────────
+//   clients/{clientId}/syncConfig/token
+//   Un jeton par client, hashé (jamais stocké en clair). Régénérer écrase le
+//   hash existant, ce qui révoque l'ancien jeton sans toucher aux autres clients.
+
+export interface SyncConfigDoc {
+  tokenHash:   string;      // SHA-256 du jeton
+  tokenSuffix: string;      // 6 derniers caractères — identification dans l'admin
+  revoked:     boolean;
+  createdAt:   Date;
+  createdBy:   string;      // uid admin ayant généré le jeton
+  lastUsedAt:  Date | null;
+}
+
+// ─── Journal de synchronisation ────────────────────────────────────────────────
+//   clients/{clientId}/syncLogs/{dateDonnees}
+//   Un document par nuit agrégée (dateDonnees) — une re-livraison de la même
+//   nuit met à jour l'entrée existante plutôt que d'empiler des doublons.
+
+export interface SyncLogDoc {
+  dateDonnees:      string | null; // "YYYY-MM-DD"
+  succes:           boolean;
+  documentsEcrits:  number;
+  franchisesCount?: number;
+  erreur?:          string;
+  horodatage:       Date;
+}

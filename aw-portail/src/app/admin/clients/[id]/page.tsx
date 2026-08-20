@@ -36,6 +36,10 @@ import {
   Palette,
   Map,
   BookOpen,
+  KeyRound,
+  Copy,
+  Check,
+  RefreshCw,
 } from "lucide-react";
 import { AdminBrandingViewer } from "@/components/admin/AdminBrandingViewer";
 import { AdminRoadmapViewer } from "@/components/admin/AdminRoadmapViewer";
@@ -147,6 +151,20 @@ function AdminClientDetailContent() {
   const [signing, setSigning]             = useState(false);
   const [signError, setSignError]         = useState<string | null>(null);
 
+  // Synchronisation — jeton portailSyncJob
+  interface SyncStatus {
+    exists: boolean;
+    tokenSuffix: string | null;
+    revoked: boolean;
+    createdAt: string | null;
+    lastUsedAt: string | null;
+  }
+  const [syncStatus, setSyncStatus]       = useState<SyncStatus | null>(null);
+  const [syncLoading, setSyncLoading]     = useState(false);
+  const [newToken, setNewToken]           = useState<string | null>(null);
+  const [tokenCopied, setTokenCopied]     = useState(false);
+  const [syncError, setSyncError]         = useState<string | null>(null);
+
   // Messages
   const [messages, setMessages] = useState<Message[]>([]);
   const [msgTexte, setMsgTexte] = useState("");
@@ -217,6 +235,54 @@ function AdminClientDetailContent() {
 
   function handleViewContrat() {
     window.open(`/api/contrat/${id}`, "_blank", "noopener,noreferrer");
+  }
+
+  // Synchronisation — statut du jeton portailSyncJob
+  useEffect(() => {
+    fetch(`/api/admin/sync-token?clientId=${id}`)
+      .then((r) => r.json())
+      .then((d) => setSyncStatus(d))
+      .catch(() => setSyncStatus(null));
+  }, [id]);
+
+  async function handleGenerateToken() {
+    if (syncStatus?.exists) {
+      const ok = confirm(
+        "Régénérer le jeton ? L'ancien jeton cessera de fonctionner immédiatement — portailSyncJob devra être reconfiguré avec le nouveau."
+      );
+      if (!ok) return;
+    }
+    setSyncLoading(true);
+    setSyncError(null);
+    setTokenCopied(false);
+    try {
+      const res = await fetch("/api/admin/sync-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erreur inconnue");
+      setNewToken(data.token);
+      setSyncStatus({
+        exists: true,
+        tokenSuffix: data.tokenSuffix,
+        revoked: false,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: null,
+      });
+    } catch (e: unknown) {
+      setSyncError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
+  async function handleCopyToken() {
+    if (!newToken) return;
+    await navigator.clipboard.writeText(newToken);
+    setTokenCopied(true);
+    setTimeout(() => setTokenCopied(false), 2000);
   }
 
   async function handleMarquerSigne() {
@@ -460,6 +526,72 @@ function AdminClientDetailContent() {
                 <PriceCard label="Succursales"      value={String(client.succursales)} />
                 <PriceCard label="Total / mois"     value={client.montantMensuel ? `${client.montantMensuel} $` : "—"} />
               </div>
+            </div>
+
+            {/* Synchronisation portailSyncJob */}
+            <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <KeyRound size={16} className="text-blue-600" />
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Synchronisation — portailSyncJob
+                </h2>
+              </div>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                Jeton utilisé par la Cloud Function du projet Firebase de ce client pour pousser
+                ses agrégats chaque nuit vers <code className="text-[11px] bg-gray-50 px-1 py-0.5 rounded">/api/sync/analytics</code>.
+              </p>
+
+              {syncStatus?.exists ? (
+                <div className="flex items-center gap-2 text-xs text-gray-600 mb-4">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 font-medium">
+                    Jeton actif — se termine par ••••{syncStatus.tokenSuffix}
+                  </span>
+                  {syncStatus.lastUsedAt && (
+                    <span className="text-gray-400">
+                      Dernière sync : {formatDate(new Date(syncStatus.lastUsedAt))}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 mb-4">Aucun jeton généré pour ce client.</p>
+              )}
+
+              {newToken && (
+                <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-medium text-yellow-800">
+                    Copiez ce jeton maintenant — il ne sera plus jamais affiché.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-white border border-yellow-200 rounded px-2 py-1.5 overflow-x-auto whitespace-nowrap">
+                      {newToken}
+                    </code>
+                    <button
+                      onClick={handleCopyToken}
+                      className="flex-shrink-0 p-1.5 rounded-md border border-yellow-300 hover:bg-yellow-100 transition-colors"
+                      title="Copier"
+                    >
+                      {tokenCopied ? <Check size={13} className="text-green-600" /> : <Copy size={13} className="text-yellow-700" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {syncError && (
+                <p className="mb-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  {syncError}
+                </p>
+              )}
+
+              <button
+                onClick={handleGenerateToken}
+                disabled={syncLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {syncLoading
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : syncStatus?.exists ? <RefreshCw size={14} /> : <KeyRound size={14} />}
+                {syncStatus?.exists ? "Régénérer le jeton" : "Générer un jeton"}
+              </button>
             </div>
           </div>
 
