@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
+import { requireClientAccess } from "@/lib/requireClientAccess";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   const { clientId } = await params;
+
+  const access = await requireClientAccess(req, clientId);
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
 
   try {
     const snap = await adminDb

@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
+import { requireAdminDetailed } from "@/lib/requireAdmin";
 
 const DEFAULT_FAQ = [
   { id: "faq_1",  ordre: 1,  active: true, question: "Combien de temps prend la conception de mon application?", reponse: "La conception et le déploiement de votre application prennent environ 8 semaines de la signature du contrat jusqu'au lancement. Ce délai inclut le design, le développement, les tests, la rencontre de validation, la soumission sur les stores et la formation. Vous pouvez suivre l'avancement en temps réel dans votre feuille de route. Si tout se passe bien, il n'est pas rare que nous livrions avant ce délai." },
@@ -28,7 +29,12 @@ const DEFAULT_FAQ = [
   { id: "faq_26", ordre: 26, active: true, question: "Comment puis-je mettre à jour les informations de mon restaurant dans l'app?", reponse: "Les informations de base de votre restaurant visibles dans l'application sont configurées lors de la mise en place initiale. Pour les modifier, contactez-nous via la messagerie de votre portail en nous indiquant les changements souhaités et notre équipe s'occupera de les appliquer." },
 ];
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const auth = await requireAdminDetailed(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const ref  = adminDb.doc("admin_config/faq");
     const snap = await ref.get();

@@ -1,19 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { adminDb } from "@/lib/firebase-admin";
 import { stripe } from "@/lib/stripe";
+import { requireClientAccess } from "@/lib/requireClientAccess";
 
 export async function POST(request: NextRequest) {
   try {
-    const sessionCookie = request.cookies.get("session")?.value;
-    if (!sessionCookie) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    const { customerId, clientId } = await request.json();
+    if (!clientId) {
+      return NextResponse.json({ error: "clientId requis" }, { status: 400 });
     }
 
-    await adminAuth.verifySessionCookie(sessionCookie, true);
+    const access = await requireClientAccess(request, clientId);
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
 
-    const { customerId } = await request.json();
     if (!customerId) {
       return NextResponse.json({ error: "customerId requis" }, { status: 400 });
+    }
+
+    // Le customerId doit correspondre à celui enregistré pour CE client —
+    // jamais faire confiance à la seule valeur reçue dans le corps.
+    const clientSnap = await adminDb.collection("clients").doc(clientId).get();
+    if (!clientSnap.exists || clientSnap.data()?.stripeCustomerId !== customerId) {
+      return NextResponse.json({ error: "customerId ne correspond pas à ce client" }, { status: 403 });
     }
 
     const setupIntent = await stripe.setupIntents.create({

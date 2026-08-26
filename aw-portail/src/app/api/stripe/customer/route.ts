@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { adminDb } from "@/lib/firebase-admin";
 import { stripe } from "@/lib/stripe";
+import { requireClientAccess } from "@/lib/requireClientAccess";
 
 export async function GET(request: NextRequest) {
   try {
-    const sessionCookie = request.cookies.get("session")?.value;
-    if (!sessionCookie) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    const clientId   = request.nextUrl.searchParams.get("clientId");
+    const customerId = request.nextUrl.searchParams.get("customerId");
+
+    if (!clientId) {
+      return NextResponse.json({ error: "clientId requis" }, { status: 400 });
     }
 
-    await adminAuth.verifySessionCookie(sessionCookie, true);
+    const access = await requireClientAccess(request, clientId);
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
 
-    const customerId = request.nextUrl.searchParams.get("customerId");
     if (!customerId) {
       return NextResponse.json({ error: "customerId requis" }, { status: 400 });
+    }
+
+    // Le customerId doit correspondre à celui enregistré pour CE client —
+    // jamais faire confiance à la seule valeur reçue en query string.
+    const clientSnap = await adminDb.collection("clients").doc(clientId).get();
+    if (!clientSnap.exists || clientSnap.data()?.stripeCustomerId !== customerId) {
+      return NextResponse.json({ error: "customerId ne correspond pas à ce client" }, { status: 403 });
     }
 
     console.log("[stripe/customer] customerId:", customerId);

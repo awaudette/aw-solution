@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb, adminStorage } from "@/lib/firebase-admin";
+import { adminDb, adminStorage } from "@/lib/firebase-admin";
+import { requireClientAccess } from "@/lib/requireClientAccess";
 
 export async function GET(
   req: NextRequest,
@@ -7,27 +8,9 @@ export async function GET(
 ) {
   const { clientId } = await params;
 
-  // Vérifier le cookie de session
-  const session = req.cookies.get("session")?.value;
-  if (!session) {
-    return new NextResponse("Non authentifié", { status: 401 });
-  }
-
-  let decoded;
-  try {
-    decoded = await adminAuth.verifySessionCookie(session, true);
-  } catch {
-    return new NextResponse("Session invalide", { status: 401 });
-  }
-
-  // Vérifier que l'utilisateur est admin ou le client concerné
-  const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
-  if (!userSnap.exists) {
-    return new NextResponse("Accès refusé", { status: 403 });
-  }
-  const user = userSnap.data()!;
-  if (user.role !== "admin" && user.clientId !== clientId) {
-    return new NextResponse("Accès refusé", { status: 403 });
+  const access = await requireClientAccess(req, clientId);
+  if (!access.ok) {
+    return new NextResponse(access.error, { status: access.status });
   }
 
   // Lire l'URL du contrat dans Firestore

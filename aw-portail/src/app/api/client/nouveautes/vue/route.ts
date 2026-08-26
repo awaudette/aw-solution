@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireClientAccess } from "@/lib/requireClientAccess";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,8 +10,14 @@ export async function POST(req: NextRequest) {
       clientId: string;
     };
     if (!nouveauteId || !clientId) {
-      return NextResponse.json({ ok: false }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Champs manquants" }, { status: 400 });
     }
+
+    const access = await requireClientAccess(req, clientId);
+    if (!access.ok) {
+      return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
+    }
+
     await adminDb
       .collection("nouveautes")
       .doc(nouveauteId)

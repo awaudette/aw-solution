@@ -213,10 +213,12 @@ const PAGE_SIZE = 5;
 // ─── CardSetupForm ────────────────────────────────────────────────────────────
 
 function CardSetupForm({
+  clientId,
   customerId,
   onSuccess,
   onCancel,
 }: {
+  clientId: string;
   customerId: string;
   onSuccess: () => void;
   onCancel: () => void;
@@ -235,7 +237,7 @@ function CardSetupForm({
       const res = await fetch("/api/stripe/setup-intent", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ customerId }),
+        body:    JSON.stringify({ customerId, clientId }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -337,14 +339,14 @@ export default function PaiementPage() {
   const fetchStripeData = useCallback(async (customerId: string) => {
     setStripeLoading(true);
     try {
-      const res  = await fetch(`/api/stripe/customer?customerId=${customerId}`);
+      const res  = await fetch(`/api/stripe/customer?customerId=${customerId}&clientId=${clientId}`);
       const data = await res.json();
       setAbonnement(data.subscription ?? null);
       setFactures(data.invoices ?? []);
       setCarte(data.paymentMethods ?? null);
     } catch {}
     finally { setStripeLoading(false); }
-  }, []);
+  }, [clientId]);
 
   useEffect(() => {
     if (clientInfo?.stripeCustomerId) fetchStripeData(clientInfo.stripeCustomerId);
@@ -795,6 +797,7 @@ export default function PaiementPage() {
           {clientInfo.stripeCustomerId ? (
             <Elements stripe={stripePromise}>
               <CardSetupForm
+                clientId={clientId}
                 customerId={clientInfo.stripeCustomerId}
                 onSuccess={handleCardSuccess}
                 onCancel={() => setCardDialog(false)}

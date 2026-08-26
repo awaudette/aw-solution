@@ -3,6 +3,7 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { resend } from "@/lib/resend";
 import { FieldValue } from "firebase-admin/firestore";
 import type { Permissions } from "@/config/sections";
+import { requireClientAccess } from "@/lib/requireClientAccess";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,15 @@ export async function POST(req: NextRequest) {
       permissions: Permissions;
     };
 
-    if (!clientId || !nom || !courriel) {
+    if (!clientId) {
+      return NextResponse.json({ error: "clientId manquant" }, { status: 400 });
+    }
+    const access = await requireClientAccess(req, clientId);
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    if (!nom || !courriel) {
       return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
     }
 
@@ -101,7 +110,14 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { clientId, userId } = await req.json() as { clientId: string; userId: string };
-    if (!clientId || !userId) return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
+    if (!clientId) return NextResponse.json({ error: "clientId manquant" }, { status: 400 });
+
+    const access = await requireClientAccess(req, clientId);
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    if (!userId) return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
 
     await adminDb.collection("clients").doc(clientId).collection("users").doc(userId).delete();
 
@@ -127,7 +143,14 @@ export async function PATCH(req: NextRequest) {
     const { clientId, userId, permissions } = await req.json() as {
       clientId: string; userId: string; permissions: Permissions;
     };
-    if (!clientId || !userId) return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
+    if (!clientId) return NextResponse.json({ error: "clientId manquant" }, { status: 400 });
+
+    const access = await requireClientAccess(req, clientId);
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    if (!userId) return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
 
     await adminDb.collection("clients").doc(clientId).collection("users").doc(userId)
       .update({ permissions });
