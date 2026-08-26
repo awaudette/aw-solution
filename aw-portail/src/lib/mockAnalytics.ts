@@ -495,6 +495,7 @@ export function getMockGlobal(): AnalyticsGlobal {
       moisRef: "2026-07",
       synthese: {
         inscriptions:      84,
+        revenus:     5_422.36,
         membresActifs:    862,
         membresTotal:   1_236,
         notifEnvoyees:  8_648,
@@ -720,6 +721,7 @@ export function getMockFranchises(): AnalyticsFranchise[] {
       comptabilite: {
         synthese: {
           inscriptions:       50,      // 84 global — Gatineau 34 ✓
+          revenus:      3_232.36,      // 5 422,36 $ global — Gatineau 2 190,00 $ ✓
           membresActifs:     514,      // 862 global — Gatineau 348 ✓
           membresTotal:      724,      // 1 236 global — Gatineau 512 ✓
           notifEnvoyees:   5_156,     // 8 648 global — Gatineau 3 492 ✓
@@ -879,6 +881,7 @@ export function getMockFranchises(): AnalyticsFranchise[] {
       comptabilite: {
         synthese: {
           inscriptions:       34,      // 84 − 50 ✓
+          revenus:      2_190.00,      // 5 422,36 − 3 232,36 ✓
           membresActifs:     348,      // 862 − 514 ✓
           membresTotal:      512,      // 1 236 − 724 ✓
           notifEnvoyees:   3_492,     // 8 648 − 5 156 ✓

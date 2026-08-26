@@ -157,9 +157,7 @@ interface MergedPromo {
   typeRabais:      string;
   utilisations:    number;
   coutReel:        number;
-  valeurDistribuee:number;
   revenusGeneres:  number;
-  roi:             number;
 }
 
 // ─── Export Excel multi-feuillets ─────────────────────────────────────────────
@@ -181,6 +179,7 @@ function exportXlsx(args: {
     [`Rapport comptable — ${moisLabel} — ${scopeLabel}`],
     [],
     ["Indicateur", "Valeur"],
+    ["Revenus",                synthese.revenus],
     ["Inscriptions",           synthese.inscriptions],
     ["Membres actifs",         synthese.membresActifs],
     ["Membres total",          synthese.membresTotal],
@@ -218,10 +217,10 @@ function exportXlsx(args: {
   XLSX.utils.book_append_sheet(wb, wsR, "Réclamations");
 
   const wsP = XLSX.utils.aoa_to_sheet([
-    ["Promotion", "Code", "Période", "Type de rabais", "Utilisations", "Coût réel ($)", "Val. distribuée ($)", "Revenus générés ($)", "ROI"],
+    ["Promotion", "Code", "Période", "Type de rabais", "Utilisations totales", "Coût réel ($)", "Revenus totaux ($)"],
     ...promos.map((p) => [
       p.nom, p.code, p.periode, p.typeRabais, p.utilisations,
-      p.coutReel, p.valeurDistribuee, p.revenusGeneres, p.roi,
+      p.coutReel === 0 ? "—" : p.coutReel, p.revenusGeneres,
     ]),
   ]);
   XLSX.utils.book_append_sheet(wb, wsP, "Promotions");
@@ -266,11 +265,13 @@ function BlocSynthese({
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
         {([
+          // Revenus du mois affiché seulement — pas cumulatif (voir Cumulatifs plus bas).
+          ["Revenus",            fmtArgent(synthese.revenus),            ""],
           ["Inscriptions",      fmtNombre(synthese.inscriptions),       "nouveaux membres"],
           ["Membres actifs",    fmtNombre(synthese.membresActifs),       `/ ${fmtNombre(synthese.membresTotal)} total`],
           ["Notif. envoyées",   fmtNombre(synthese.notifEnvoyees),       `${fmtPct(synthese.tauxOuverturePush)} ouverture`],
           ["Visites", fmtNombre(synthese.visites),    ""],
-          ["Points distribués", fmtNombre(synthese.pointsDistribues),    fmtArgent(snapshot.valeurPointsDistribues)],
+          ["Points distribués", fmtNombre(synthese.pointsDistribues),    ""],
           ["Points rachetés",   fmtNombre(synthese.pointsRachetes),      `${fmtArgent(synthese.valeurRachetee)} food cost`],
           // Pas de valeur $ affichée ici : aucun taux de conversion points → dollars
           // n'existe dans l'app, donc synthese.valeurBonus n'a aucune source valide.
@@ -349,15 +350,13 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
     c.promotions.map((p) => {
       const code = c.codesPromo.find((cp) => cp.promotionLiee === p.nom);
       return {
-        nom:              p.nom,
-        code:             code?.code ?? "—",
-        periode:          p.periode,
-        typeRabais:       p.typeRabais,
-        utilisations:     code?.utilisations ?? p.reclamations,
-        coutReel:         p.coutReel,
-        valeurDistribuee: p.valeurDistribuee,
-        revenusGeneres:   p.revenusGeneres,
-        roi:              p.roi,
+        nom:            p.nom,
+        code:           code?.code ?? "—",
+        periode:        p.periode,
+        typeRabais:     p.typeRabais,
+        utilisations:   code?.utilisations ?? p.reclamations,
+        coutReel:       p.coutReel,
+        revenusGeneres: p.revenusGeneres,
       };
     }),
     [c.promotions, c.codesPromo],
@@ -380,16 +379,17 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
     { header: "Points réclamés", key: "pointsReclames", fmt: (v) => fmtNombre(v as number), align: "right" },
     { header: "Food cost",       key: "foodCost",       fmt: (v) => fmtArgent(v as number), align: "right" },
   ];
+  // Pas de ROI ni de Val. distribuée : ces colonnes sont retirées de l'affichage
+  // (gardées dans MergedPromo/l'export Excel). Coût réel à 0 $ affiché en tiret
+  // plutôt qu'un montant qui laisse croire à une donnée mesurée.
   const colsPromos: ColDef[] = [
-    { header: "Promotion",       key: "nom"                                                              },
-    { header: "Code",            key: "code"                                                             },
-    { header: "Période",         key: "periode"                                                          },
-    { header: "Type de rabais",  key: "typeRabais"                                                       },
-    { header: "Utilisations",    key: "utilisations",    fmt: (v) => fmtNombre(v as number), align: "right" },
-    { header: "Coût réel",       key: "coutReel",        fmt: (v) => fmtArgent(v as number), align: "right" },
-    { header: "Val. distribuée", key: "valeurDistribuee",fmt: (v) => fmtArgent(v as number), align: "right" },
-    { header: "Revenus générés", key: "revenusGeneres",  fmt: (v) => fmtArgent(v as number), align: "right" },
-    { header: "ROI",             key: "roi",             fmt: (v) => `${(v as number).toFixed(1).replace(".", ",")}×`, align: "right" },
+    { header: "Promotion",             key: "nom"                                                              },
+    { header: "Code",                  key: "code"                                                             },
+    { header: "Période",               key: "periode"                                                          },
+    { header: "Type de rabais",        key: "typeRabais"                                                       },
+    { header: "Utilisations totales",  key: "utilisations",    fmt: (v) => fmtNombre(v as number), align: "right" },
+    { header: "Coût réel",             key: "coutReel",        fmt: (v) => (v as number) === 0 ? "—" : fmtArgent(v as number), align: "right" },
+    { header: "Revenus totaux",        key: "revenusGeneres",  fmt: (v) => fmtArgent(v as number), align: "right" },
   ];
 
   function handleExportXlsx() {
@@ -471,6 +471,9 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
           Promotions du mois
         </h3>
         <Table cols={colsPromos} data={mergedPromos as unknown as Row[]} csvName={`promotions-${moisRef}`} />
+        <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 10 }}>
+          Utilisations totales et revenus totaux sont cumulatifs depuis la création de la promotion, pas limités à {moisLabel.toLowerCase()}.
+        </p>
       </div>
 
     </div>

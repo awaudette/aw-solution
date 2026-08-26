@@ -196,7 +196,7 @@ const comptabilitePromotion: Spec = { object: {
 } };
 
 const syntheseComptable: Spec = { object: {
-  inscriptions: "number", membresActifs: "number", membresTotal: "number",
+  inscriptions: "number", revenus: "number", membresActifs: "number", membresTotal: "number",
   notifEnvoyees: "number", tauxOuverturePush: "number", visites: "number",
   pointsDistribues: "number", pointsRachetes: "number", valeurRachetee: "number",
   bonusAttribues: "number", valeurBonus: "number",

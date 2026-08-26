@@ -177,7 +177,12 @@ export default function OngletHistorique({ rapports, isPrestige }: Props) {
   const sorted     = [...rapports].sort((a, b) =>
     b.annee !== a.annee ? b.annee - a.annee : b.mois - a.mois,
   );
-  const comptable   = sorted.filter((r) => r.type === "comptable");
+  // La route de sync écrit un rapport "comptable" global ET un par franchise
+  // pour le même mois (voir src/app/api/sync/analytics/route.ts) — cette vue
+  // n'a pas de sélecteur de franchise, donc on ne garde que le rapport global
+  // (franchiseId absent) pour éviter deux cartes "Rapport mensuel" identiques
+  // en apparence pour le même mois.
+  const comptable   = sorted.filter((r) => r.type === "comptable" && !r.franchiseId);
   const performance = sorted.filter((r) => r.type === "performance");
 
   if (sorted.length === 0) {
@@ -198,9 +203,31 @@ export default function OngletHistorique({ rapports, isPrestige }: Props) {
         rapports={comptable}
       />
 
-      {/* Prestige uniquement : rapports de performance */}
+      {/* Prestige uniquement : rapports de performance — carte grisée "bientôt
+          disponible" tant qu'aucun rapport n'a été généré, plutôt que de
+          masquer la section en silence. */}
       {isPrestige && (
-        <SubSection title="Rapports de performance" rapports={performance} />
+        performance.length > 0 ? (
+          <SubSection title="Rapports de performance" rapports={performance} />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: 0 }}>
+              Rapports de performance
+            </h2>
+            <div style={{
+              ...CARD, background: "#F9FAFB", border: "1px dashed #D1D5DB",
+              textAlign: "center", padding: 40,
+            }}>
+              <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.5 }}>📈</div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#9CA3AF", margin: "0 0 4px" }}>
+                Rapport de performance
+              </p>
+              <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
+                Bientôt disponible
+              </p>
+            </div>
+          </div>
+        )
       )}
 
       {/* Comparateur de périodes — tous forfaits */}

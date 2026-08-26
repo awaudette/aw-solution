@@ -478,11 +478,11 @@ function Tab7j({ d, global }: { d: PeriodeStandard; global: AnalyticsGlobal }) {
         <Metric label="Visites"           value={fmtNombre(d.visites)} />
         <Metric label="Rev. moyen / jour" value={fmtArgent(revMoyJour)} sub="7 jours" />
         <Metric label="Taux de visite"    value={fmtPct(d.tauxVisite)}
-          tip="% des membres totaux ayant visité durant les 7 jours." />
+          tip="Pourcentage de vos membres actifs ayant visité dans les 7 derniers jours. Ce pourcentage est calculé sur vos membres actifs et non sur vos membres totaux, ce qui explique la différence avec le chiffre affiché dans votre application." />
         <Metric label="Rev. par visite"   value={fmtArgent(d.revenuParVisite)} />
         <Metric label="Bonus joués"       value={fmtNombre(d.bonusJoues)} />
         <Metric label="Participation bonus" value={fmtPct(d.participationBonus)}
-          tip="% des membres actifs ayant joué un bonus." />
+          tip="Pourcentage de vos membres actifs ayant joué au bonus dans les 7 derniers jours. Ce pourcentage est calculé sur vos membres actifs et non sur vos membres totaux, ce qui explique la différence avec le chiffre affiché dans votre application." />
         <Metric label="Points émis total" value={fmtNombre(pointsTotal)}
           tip={`Factures : ${fmtNombre(d.pointsEmisFactures)} · Bonus : ${fmtNombre(d.pointsEmisBonus)}`} />
       </div>
@@ -515,12 +515,12 @@ function Tab30j({ d, global }: { d: Periode30j; global: AnalyticsGlobal }) {
         <Metric label="Panier moyen"       value={fmtArgent(d.panierMoyen)}         varRatio={d.variations.panierMoyen} />
         <Metric label="Visites"            value={fmtNombre(d.visites)} />
         <Metric label="Taux de visite"     value={fmtPct(d.tauxVisite)}
-          tip="% des membres totaux ayant visité durant les 30 jours." />
+          tip="Pourcentage de vos membres actifs ayant visité dans les 30 derniers jours. Ce pourcentage est calculé sur vos membres actifs et non sur vos membres totaux, ce qui explique la différence avec le chiffre affiché dans votre application." />
         <Metric label="Rev. par visite"    value={fmtArgent(d.revenuParVisite)} />
         <Metric label="Réclamations"       value={fmtNombre(d.reclamations)} sub="récompenses" />
         <Metric label="Bonus joués"        value={fmtNombre(d.bonusJoues)} />
         <Metric label="Participation bonus"value={fmtPct(d.participationBonus)}
-          tip="% des membres actifs ayant joué un bonus." />
+          tip="Pourcentage de vos membres actifs ayant joué au bonus dans les 30 derniers jours. Ce pourcentage est calculé sur vos membres actifs et non sur vos membres totaux, ce qui explique la différence avec le chiffre affiché dans votre application." />
         <Metric label="Taux de churn"      value={fmtPct(d.tauxChurn)}
           tip="% de membres perdus durant les 30 jours." />
         <Metric label="Customer momentum"  value={d.customerMomentum.toFixed(2).replace(".", ",")}
@@ -585,13 +585,13 @@ function Tab90j({ d, global }: { d: Periode90j; global: AnalyticsGlobal }) {
         <Metric label="Visites"             value={fmtNombre(d.visites)} />
         <Metric label="Panier moyen"        value={fmtArgent(d.panierMoyen)}         varRatio={d.variations.panierMoyen} />
         <Metric label="Taux de visite"      value={fmtPct(d.tauxVisite)}
-          tip="% des membres totaux ayant visité durant les 90 jours." />
+          tip="Pourcentage de vos membres actifs ayant visité dans les 90 derniers jours. Ce pourcentage est calculé sur vos membres actifs et non sur vos membres totaux, ce qui explique la différence avec le chiffre affiché dans votre application." />
         <Metric label="Rev. par visite"     value={fmtArgent(d.revenuParVisite)} />
         <Metric label="Rev. moyen / jour"   value={fmtArgent(revMoyJour)} sub="90 jours" />
         <Metric label="Réclamations"        value={fmtNombre(d.reclamations)} sub="récompenses" />
         <Metric label="Bonus joués"         value={fmtNombre(d.bonusJoues)} />
         <Metric label="Participation bonus" value={fmtPct(d.participationBonus)}
-          tip="% des membres actifs ayant joué un bonus." />
+          tip="Pourcentage de vos membres actifs ayant joué au bonus dans les 90 derniers jours. Ce pourcentage est calculé sur vos membres actifs et non sur vos membres totaux, ce qui explique la différence avec le chiffre affiché dans votre application." />
         <Metric label="Breakage rate"       value={fmtPct(d.breakageRate)}
           tip="% des points émis jamais réclamés sur la période." />
         <Metric label="Taux de churn"       value={fmtPct(d.tauxChurn)}
@@ -646,6 +646,19 @@ export default function OngletAnalytique({ global }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+      {/* Mention de méthode : le sous-onglet 90 jours du portail est une fenêtre
+          glissante, alors que l'application mobile affiche les 3 derniers mois
+          calendaires complets — ce sont deux périodes différentes, d'où certains
+          écarts de chiffres qui ne sont pas des erreurs. */}
+      <div style={{
+        padding: "10px 16px", borderRadius: 10, background: "#EFF6FF",
+        border: "1px solid #BFDBFE", fontSize: 12, color: "#1e3a8a",
+      }}>
+        ℹ️ Le portail affiche les 90 derniers jours glissants, alors que l&apos;application mobile
+        affiche les 3 derniers mois calendaires complets — ce qui explique certaines différences
+        de chiffres entre les deux.
+      </div>
+
       {/* Sélecteur de période */}
       <div style={{ display: "flex", gap: 8 }}>
         {SUB_TABS.map((t) => (

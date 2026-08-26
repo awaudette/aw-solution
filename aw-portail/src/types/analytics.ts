@@ -84,10 +84,10 @@ export interface PeriodeStandard {
   visites:             number;
   reclamations:        number;
   bonusJoues:          number;
-  participationBonus:  number; // % de membres ayant joué un bonus
+  participationBonus:  number; // % de membres ayant joué un bonus, calculé sur les membres actifs de la période (pas membresTotal)
   pointsEmisFactures:  number;
   pointsEmisBonus:     number;
-  tauxVisite:          number; // % (membresActifs / membresTotal * 100)
+  tauxVisite:          number; // % calculé sur les membres actifs de la période (pas membresTotal)
   revenuParVisite:     number; // CAD
   breakageRate:        number; // % points non réclamés / points émis
   burnRate:            number; // % points réclamés / points émis
@@ -317,6 +317,7 @@ export interface SnapshotFinMois {
 export interface ComptabiliteFranchise {
   synthese: {
     inscriptions:      number; // Phase 3 — portailSyncJob
+    revenus:           number; // Phase 3 — portailSyncJob — mois affiché seulement, pas cumulatif
     membresActifs:     number; // Phase 3 — portailSyncJob
     membresTotal:      number; // Phase 3 — portailSyncJob
     notifEnvoyees:     number; // Phase 3 — portailSyncJob
@@ -343,6 +344,9 @@ export interface Comptabilite {
   // Synthèse du mois
   synthese: {
     inscriptions:      number;
+    /** Revenus du mois affiché seulement — pas un cumulatif (distinct de
+     *  snapshotFinMois.revenusTotal, qui lui est cumulatif depuis le lancement). */
+    revenus:           number;
     membresActifs:     number;
     membresTotal:      number;
     notifEnvoyees:     number;

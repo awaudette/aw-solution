@@ -95,12 +95,9 @@ function Hero({ client, couleur, global }: { client: ClientData; couleur: string
   // Équivalent de l'ancien getMockAnalytics().current — dérivé directement de global.
   const current = {
     membresTotal:     global.aVie.membresTotal,
-    membresActifs:    global["30j"].membresActifs,
-    visitesValidees:  global["30j"].ventes,
+    visitesValidees:  global["30j"].visites, // décompte de visites, pas de transactions (voir "ventes")
     revenusAttribues: global["30j"].revenus,
     variations: {
-      membresActifs:    global["30j"].variations.membresActifs,
-      visitesValidees:  global["30j"].variations.ventes,
       revenusAttribues: global["30j"].variations.revenus,
     },
   };
@@ -122,31 +119,35 @@ function Hero({ client, couleur, global }: { client: ClientData; couleur: string
   // tous deux sur 30j) multipliait un décompte de membres par un ratio de croissance
   // relative — un produit qui ne correspond à aucune métrique réelle, d'où l'écart
   // (591 affiché vs 94 attendu). Voir le commentaire sur PeriodeAVie.variationMembres.
+  // Fenêtre réelle : dernier mois calendaire clos vs le mois précédent (ex: juillet
+  // vs juin) — ne dit rien du mois en cours, d'où "dernier mois complet" et non "ce mois".
   const membresAddCeMois = global.aVie.variationMembres ?? 0;
-  const visitesAddCeMois = Math.round(current.visitesValidees * current.variations.visitesValidees);
   const revenusCeMois    = current.revenusAttribues;
   const revenusVar       = current.variations.revenusAttribues;
 
-  const stats = [
+  const stats: { label: string; value: string; sub?: string; positive?: boolean; icon: React.ElementType }[] = [
     {
-      label: "Membres",
+      label: "Membres totaux",
       value: fmtNombre(current.membresTotal),
-      sub: `${membresAddCeMois >= 0 ? "+" : ""}${fmtNombre(membresAddCeMois)} ce mois`,
+      sub: `${membresAddCeMois >= 0 ? "+" : ""}${fmtNombre(membresAddCeMois)} dernier mois complet`,
       positive: membresAddCeMois >= 0,
       icon: Users,
     },
     {
-      label: "Revenus attribués",
+      // 30j = fenêtre glissante des 30 derniers jours, pas un mois calendaire —
+      // comparée aux 30 jours glissants précédents (PeriodeStandard.variations).
+      label: "Revenus 30 derniers jours",
       value: fmtArgent(revenusCeMois),
-      sub: `${revenusVar >= 0 ? "+" : ""}${Math.round(revenusVar * 100)} % vs mois préc.`,
+      sub: `${revenusVar >= 0 ? "+" : ""}${Math.round(revenusVar * 100)} % vs 30 jours précédents`,
       positive: revenusVar >= 0,
       icon: DollarSign,
     },
     {
-      label: "Visites ce mois",
+      // Pas de variation affichée : l'ancien calcul (décompte × ratio) était le même
+      // bogue retiré de la tuile Membres — aucun champ de variation fiable n'existe
+      // pour ce champ. Le décompte lui-même reste juste.
+      label: "Visites 30 derniers jours",
       value: fmtNombre(current.visitesValidees),
-      sub: `${visitesAddCeMois >= 0 ? "+" : ""}${fmtNombre(visitesAddCeMois)} vs mois préc.`,
-      positive: visitesAddCeMois >= 0,
       icon: Activity,
     },
   ];
@@ -195,16 +196,18 @@ function Hero({ client, couleur, global }: { client: ClientData; couleur: string
               </p>
               <Icon size={14} color="rgba(255,255,255,0.5)" />
             </div>
-            <p style={{ fontSize: 22, fontWeight: 700, color: "#fff", margin: "0 0 6px", lineHeight: 1 }}>
+            <p style={{ fontSize: 22, fontWeight: 700, color: "#fff", margin: sub !== undefined ? "0 0 6px" : 0, lineHeight: 1 }}>
               {value}
             </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {positive
-                ? <TrendingUp size={11} color="#86EFAC" />
-                : <TrendingDown size={11} color="#FCA5A5" />
-              }
-              <p style={{ fontSize: 11, color: positive ? "#86EFAC" : "#FCA5A5", margin: 0 }}>{sub}</p>
-            </div>
+            {sub !== undefined && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {positive
+                  ? <TrendingUp size={11} color="#86EFAC" />
+                  : <TrendingDown size={11} color="#FCA5A5" />
+                }
+                <p style={{ fontSize: 11, color: positive ? "#86EFAC" : "#FCA5A5", margin: 0 }}>{sub}</p>
+              </div>
+            )}
           </div>
         ))}
       </div>
