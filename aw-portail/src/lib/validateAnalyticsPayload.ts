@@ -137,6 +137,9 @@ const periodeAVie: Spec = { object: {
   notifications: blocNotifications, promos: blocPromos,
   seriesMensuelles: { array: seriesMensuelles },
   pointsDistribuesFactures: "number", pointsDistribuesBonus: "number",
+  recompensesActives: { optional: "number" },
+  promosActives:      { optional: "number" },
+  variationMembres:   { optional: "number" },
 } };
 
 const segment: Spec = { object: {
@@ -232,6 +235,7 @@ const periode: Spec = { object: { dateDonnees: "string", derniereSync: "string" 
 
 const analyticsGlobalSpec: Spec = { object: {
   periode,
+  dateLancement: { optional: "string" }, // "YYYY-MM-DD" — Phase 3, pas encore envoyé par toutes les CF
   aVie: periodeAVie,
   hier: periodeHier,
   "7j": periodeStandard,

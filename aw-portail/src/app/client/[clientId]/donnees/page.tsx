@@ -3,13 +3,8 @@
 import { Suspense, useState, useMemo } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useClientData } from "@/hooks/useClientData";
+import { useAnalyticsData } from "@/hooks/useAnalyticsData";
 import type { AnalyticsFranchise } from "@/types/analytics";
-import {
-  getMockGlobal,
-  getMockFranchises,
-  getMockAlertes,
-  getMockRapports,
-} from "@/lib/mockAnalytics";
 import OngletResume              from "@/components/donnees/OngletResume";
 import OngletAlertes             from "@/components/donnees/OngletAlertes";
 import OngletSegmentation        from "@/components/donnees/OngletSegmentation";
@@ -69,11 +64,7 @@ function DonneesInner() {
   const [activeTab, setActiveTab] = useState<TabId>(rawTab);
   const [franchiseId, setFranchiseId] = useState("global");
 
-  // ── Données mock (Phase 3 : remplacer par useAnalyticsData) ──
-  const global     = useMemo(() => getMockGlobal(), []);
-  const franchises = useMemo(() => getMockFranchises(), []);
-  const alertes    = useMemo(() => getMockAlertes(), []);
-  const rapports   = useMemo(() => getMockRapports(), []);
+  const { global, franchises, alertes, rapports, loading, hasData } = useAnalyticsData(clientId);
 
   // ── Doc de la franchise sélectionnée (null = toutes) ──────────
   const franchiseData: AnalyticsFranchise | null = useMemo(
@@ -89,6 +80,43 @@ function DonneesInner() {
   function goTab(id: TabId) {
     setActiveTab(id);
     router.replace(`/client/${clientId}/donnees?tab=${id}`, { scroll: false });
+  }
+
+  // ── Chargement ──────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ width: 20, height: 20, border: "2px solid #0362E3", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+      </div>
+    );
+  }
+
+  // ── Aucune donnée : la sync n'a jamais tourné pour ce client ────
+  if (!hasData || !global) {
+    return (
+      <div style={S.page}>
+        <div style={{ ...S.header, marginBottom: 0 }}>
+          <div>
+            <h1 style={S.h1}>Données &amp; rapports</h1>
+            <p style={S.sub}>Aucune donnée disponible pour le moment</p>
+          </div>
+        </div>
+        <div style={{
+          marginTop: 24, padding: "48px 32px", textAlign: "center",
+          background: "white", borderRadius: 12, border: "1px dashed #D1D5DB",
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#374151", margin: "0 0 8px" }}>
+            La synchronisation n&apos;a pas encore été reçue
+          </p>
+          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
+            Les données apparaîtront ici automatiquement après la première synchronisation nocturne
+            (clients/{clientId}/analytics/global). Aucune action requise si la sync vient d&apos;être activée.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const [y, m, d] = global.periode.dateDonnees.split("-").map(Number);

@@ -172,6 +172,18 @@ export interface PeriodeAVie {
   /** Points émis via bonus (anniversaire, parrainage, offres spéciales) depuis le lancement.
    *  Phase 3 — portailSyncJob requis. */
   pointsDistribuesBonus:    number;
+  // ── Compteurs "actifs" (accueil — carte "Votre programme") ───────────────
+  /** Nombre de récompenses actuellement actives dans le programme (offertes aux
+   *  membres) — distinct de recompenses[] à la racine, qui ne liste que les
+   *  récompenses déjà réclamées au moins une fois. Phase 3 — portailSyncJob. */
+  recompensesActives?: number;
+  /** Nombre de promotions globales actuellement actives. Phase 3 — portailSyncJob. */
+  promosActives?: number;
+  /** Variation absolue du nombre de membres actifs (ex: +94), pré-calculée par la CF.
+   *  Remplace le calcul membresActifs × variations.membresActifs (30j) — ce dernier
+   *  multipliait un décompte par un ratio de croissance et ne représentait rien de réel.
+   *  Phase 3 — portailSyncJob. */
+  variationMembres?: number;
 }
 
 // ─── Segmentation RFM (Prestige) ──────────────────────────────────────────────
@@ -375,6 +387,11 @@ export interface AnalyticsGlobal {
     dateDonnees:  string;    // "YYYY-MM-DD" — D-1 (jour agrégé)
     derniereSync: Date;      // 5 h le matin
   };
+  /** Date de mise en ligne réelle de l'app, "YYYY-MM-DD" — distincte de
+   *  clients/{clientId}.dateLancement (date d'acquisition saisie à la signature).
+   *  Phase 3 — portailSyncJob : champ pas encore envoyé par toutes les CF clients,
+   *  optionnel tant que la migration n'est pas complète. */
+  dateLancement?: string; // Phase 3 — portailSyncJob
   aVie:  PeriodeAVie;
   hier:  PeriodeHier;
   "7j":  PeriodeStandard;

@@ -20,8 +20,9 @@ import { Line } from "react-chartjs-2";
 import { CardMessages }      from "./CardMessages";
 import { CardNotifications } from "./CardNotifications";
 import { CardForfait }       from "./CardForfait";
-import { getMockAnalytics, fmtNombre, fmtArgent } from "@/lib/mockAnalytics";
-import type { AlerteDoc as Alerte } from "@/types/analytics";
+import { fmtNombre, fmtArgent } from "@/lib/mockAnalytics";
+import { useAnalyticsData, type AlerteItem, type RapportItem } from "@/hooks/useAnalyticsData";
+import type { AnalyticsGlobal, AlerteDoc as Alerte, SerieJournaliere } from "@/types/analytics";
 import type { ClientData, OnboardingEtape, ActiviteItem, MessageItem } from "@/hooks/useClientData";
 
 // ─── Enregistrement Chart.js ──────────────────────────────────────────────────
@@ -90,12 +91,38 @@ export interface AccueilActifProps {
 
 // ─── Hero avec stats ──────────────────────────────────────────────────────────
 
-function Hero({ client, couleur }: { client: ClientData; couleur: string }) {
-  const analytics = getMockAnalytics();
-  const { current } = analytics;
+function Hero({ client, couleur, global }: { client: ClientData; couleur: string; global: AnalyticsGlobal }) {
+  // Équivalent de l'ancien getMockAnalytics().current — dérivé directement de global.
+  const current = {
+    membresTotal:     global.aVie.membresTotal,
+    membresActifs:    global["30j"].membresActifs,
+    visitesValidees:  global["30j"].ventes,
+    revenusAttribues: global["30j"].revenus,
+    variations: {
+      membresActifs:    global["30j"].variations.membresActifs,
+      visitesValidees:  global["30j"].variations.ventes,
+      revenusAttribues: global["30j"].variations.revenus,
+    },
+  };
   const gradient  = `linear-gradient(135deg, ${couleur}, ${shadeColor(couleur)})`;
 
-  const membresAddCeMois = Math.round(current.membresActifs * current.variations.membresActifs);
+  // Date de lancement réelle : global.dateLancement (envoyé par portailSyncJob) si
+  // présent, sinon repli sur la date d'acquisition du client (clients/{clientId}.dateLancement,
+  // saisie manuellement à la signature — pas la vraie date de mise en ligne).
+  // TODO retirer le repli une fois que toutes les Cloud Functions clients envoient le champ.
+  const dateLancementReelle = global.dateLancement
+    ? (() => {
+        const [ly, lm, ld] = global.dateLancement!.split("-").map(Number);
+        return new Date(ly, lm - 1, ld);
+      })()
+    : client.dateLancement;
+
+  // Variation absolue de membres — vient directement de aVie.variationMembres,
+  // pré-calculée par la CF. L'ancien calcul (membresActifs × variations.membresActifs,
+  // tous deux sur 30j) multipliait un décompte de membres par un ratio de croissance
+  // relative — un produit qui ne correspond à aucune métrique réelle, d'où l'écart
+  // (591 affiché vs 94 attendu). Voir le commentaire sur PeriodeAVie.variationMembres.
+  const membresAddCeMois = global.aVie.variationMembres ?? 0;
   const visitesAddCeMois = Math.round(current.visitesValidees * current.variations.visitesValidees);
   const revenusCeMois    = current.revenusAttribues;
   const revenusVar       = current.variations.revenusAttribues;
@@ -146,9 +173,9 @@ function Hero({ client, couleur }: { client: ClientData; couleur: string }) {
             <span style={{ fontSize: 12, fontWeight: 600, color: "#fff", background: "#166534", borderRadius: 20, padding: "4px 12px" }}>
               ● Application active
             </span>
-            {client.dateLancement && (
+            {dateLancementReelle && (
               <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", borderRadius: 20, padding: "4px 12px", border: "1px solid rgba(255,255,255,0.2)" }}>
-                En ligne depuis {client.dateLancement.toLocaleDateString("fr-CA", { month: "long", year: "numeric" })}
+                En ligne depuis {dateLancementReelle.toLocaleDateString("fr-CA", { month: "long", year: "numeric" })}
               </span>
             )}
           </div>
@@ -193,9 +220,7 @@ const SEVERITE_STYLE: Record<Alerte["severite"], { border: string; icon: React.E
   positive:  { border: "#22C55E", icon: CheckCircle2,  iconColor: "#22C55E", badge: "Positif",  badgeBg: "#F0FDF4" },
 };
 
-function CardAlertes({ clientId }: { clientId: string }) {
-  const { alertes } = getMockAnalytics();
-
+function CardAlertes({ clientId, alertes }: { clientId: string; alertes: AlerteItem[] }) {
   const priorityOrder: Alerte["severite"][] = ["critique", "critique", "attention"];
   const visible = alertes
     .filter((a) => !a.lue)
@@ -258,16 +283,13 @@ function CardAlertes({ clientId }: { clientId: string }) {
 
 // ─── Graphique de tendance ────────────────────────────────────────────────────
 
-function CardGraphique() {
-  const { series } = getMockAnalytics();
-  const { visitesRevenus } = series;
-
+function CardGraphique({ series }: { series: SerieJournaliere[] }) {
   const data = {
-    labels: visitesRevenus.map((v) => v.date),
+    labels: series.map((v) => v.date),
     datasets: [
       {
         label: "Visites",
-        data: visitesRevenus.map((v) => v.visites),
+        data: series.map((v) => v.visites),
         borderColor: "#0362E3",
         backgroundColor: "rgba(3,98,227,0.08)",
         borderWidth: 2,
@@ -302,12 +324,18 @@ function CardGraphique() {
 
 // ─── Programme en un coup d'œil ───────────────────────────────────────────────
 
-function CardProgramme({ clientId }: { clientId: string }) {
-  const { recompenses, campagnes } = getMockAnalytics();
+function CardProgramme({
+  clientId, recompensesActives, promosActives, membresActifs30j,
+}: {
+  clientId: string;
+  recompensesActives: number;
+  promosActives: number;
+  membresActifs30j: number;
+}) {
   const items = [
-    { icon: Gift, label: "Récompenses actives", value: `${recompenses.length}`, color: "#7C3AED", bg: "#F5F3FF" },
-    { icon: Megaphone, label: "Campagnes ce mois", value: `${campagnes.length}`, color: "#0362E3", bg: "#EFF6FF" },
-    { icon: Star, label: "Prochaine campagne", value: "À planifier", color: "#F59E0B", bg: "#FFFBEB" },
+    { icon: Gift, label: "Récompenses actives", value: `${recompensesActives}`, color: "#7C3AED", bg: "#F5F3FF" },
+    { icon: Megaphone, label: "Promotions actives", value: `${promosActives}`, color: "#0362E3", bg: "#EFF6FF" },
+    { icon: Users, label: "Membres actifs (30 derniers jours)", value: fmtNombre(membresActifs30j), color: "#1baf7a", bg: "#F0FDF4" },
   ];
   return (
     <div style={CARD}>
@@ -363,9 +391,8 @@ function CardNouveautes({ annonces }: { annonces: Annonce[] }) {
 
 // ─── Rapport du mois ──────────────────────────────────────────────────────────
 
-function CardRapport({ client }: { client: ClientData }) {
-  const { rapports } = getMockAnalytics();
-  const dernierRapport = rapports[0]; // trié par date desc dans le mock
+function CardRapport({ client, rapports }: { client: ClientData; rapports: RapportItem[] }) {
+  const dernierRapport = rapports[0]; // requête Firestore triée par generatedAt desc
 
   if (!dernierRapport) return null;
 
@@ -495,6 +522,7 @@ export function AccueilActif({ clientId, client, activite, messages }: AccueilAc
   const [couleur, setCouleur]     = useState(client.couleurPortail || "#0A1628");
   const [annonces, setAnnonces]   = useState<Annonce[]>([]);
   const [rencontre, setRencontre] = useState<Rencontre | null>(null);
+  const { global, alertes, rapports, loading: analyticsLoading, hasData } = useAnalyticsData(clientId);
 
   // Couleur : branding/main.couleurPrincipale → couleurPortail
   useEffect(() => {
@@ -543,23 +571,56 @@ export function AccueilActif({ clientId, client, activite, messages }: AccueilAc
     });
   }, [clientId, client.forfait]);
 
+  // ── Chargement des analytics ────────────────────────────────────
+  if (analyticsLoading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F4F6F9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ width: 20, height: 20, border: "2px solid #0362E3", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+      </div>
+    );
+  }
+
+  // ── Aucune donnée : la sync n'a jamais tourné pour ce client ────
+  if (!hasData || !global) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F4F6F9" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 48px 80px" }}>
+          <div style={{
+            padding: "48px 32px", textAlign: "center",
+            background: "white", borderRadius: 16, border: "1px dashed #D1D5DB",
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "#374151", margin: "0 0 8px" }}>
+              La synchronisation n&apos;a pas encore été reçue
+            </p>
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
+              Les statistiques de {client.restaurant} apparaîtront ici automatiquement après la première
+              synchronisation nocturne. Aucune action requise si la sync vient d&apos;être activée.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6F9" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 48px 80px" }}>
 
         {/* Hero avec stats */}
-        <Hero client={client} couleur={couleur} />
+        <Hero client={client} couleur={couleur} global={global} />
 
         {/* Alertes intelligentes — Prestige seulement */}
         {client.forfait === "Prestige" && (
           <div style={{ marginBottom: 20 }}>
-            <CardAlertes clientId={clientId} />
+            <CardAlertes clientId={clientId} alertes={alertes} />
           </div>
         )}
 
         {/* Graphique de tendance */}
         <div style={{ marginBottom: 20 }}>
-          <CardGraphique />
+          <CardGraphique series={global["30j"].series} />
         </div>
 
         {/* Grille principale 3:2 */}
@@ -573,9 +634,12 @@ export function AccueilActif({ clientId, client, activite, messages }: AccueilAc
 
           {/* Colonne droite */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <CardProgramme  clientId={clientId} />
+            <CardProgramme  clientId={clientId}
+              recompensesActives={global.aVie.recompensesActives ?? 0}
+              promosActives={global.aVie.promosActives ?? 0}
+              membresActifs30j={global["30j"].membresActifs} />
             <CardNouveautes annonces={annonces} />
-            <CardRapport    client={client} />
+            <CardRapport    client={client} rapports={rapports} />
             {client.forfait === "Prestige" && (
               <CardRencontre rencontre={rencontre} clientId={clientId} />
             )}

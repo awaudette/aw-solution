@@ -286,7 +286,7 @@ function SecPerformanceCampagnes({ d, title = "Performance campagnes" }: PerfCam
     ["Revenus attribués",       fmtArgent(d.promos.revenusAttribues)],
     ["Promos réclamées",        fmtNombre(d.promos.conversions)],
     ["Clics",                   fmtNombre(d.promos.clics)],
-    ["Notifs push envoyées",    fmtNombre(d.notifications.envoyees)],
+    ["Notifications envoyées (destinataires)", fmtNombre(d.notifications.envoyees)],
     ["Taux d'ouverture",        fmtPct(d.notifications.tauxOuverture)],
   ];
   return (
@@ -468,7 +468,10 @@ function Tab7j({ d, global }: { d: PeriodeStandard; global: AnalyticsGlobal }) {
   return (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <Metric label="Membres actifs"    value={fmtNombre(d.membresActifs)}    varRatio={d.variations.membresActifs} />
+        {/* Pas de varRatio ici : lastAppOpenAt ne garde que la dernière ouverture de
+            chaque membre, donc une variation sur une fenêtre passée sous-compte
+            massivement et n'est pas fiable. Le décompte lui-même reste juste. */}
+        <Metric label="Membres actifs"    value={fmtNombre(d.membresActifs)} />
         <Metric label="Nouveaux membres"  value={fmtNombre(d.nouveauxMembres)} />
         <Metric label="Revenus"           value={fmtArgent(d.revenus)}           varRatio={d.variations.revenus} />
         <Metric label="Panier moyen"      value={fmtArgent(d.panierMoyen)}        varRatio={d.variations.panierMoyen} />
@@ -503,7 +506,10 @@ function Tab30j({ d, global }: { d: Periode30j; global: AnalyticsGlobal }) {
   return (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <Metric label="Membres actifs"     value={fmtNombre(d.membresActifs)}     varRatio={d.variations.membresActifs} />
+        {/* Pas de varRatio ici : lastAppOpenAt ne garde que la dernière ouverture de
+            chaque membre, donc une variation sur une fenêtre passée sous-compte
+            massivement et n'est pas fiable. Le décompte lui-même reste juste. */}
+        <Metric label="Membres actifs"     value={fmtNombre(d.membresActifs)} />
         <Metric label="Nouveaux membres"   value={fmtNombre(d.nouveauxMembres)} />
         <Metric label="Revenus"            value={fmtArgent(d.revenus)}            varRatio={d.variations.revenus} />
         <Metric label="Panier moyen"       value={fmtArgent(d.panierMoyen)}         varRatio={d.variations.panierMoyen} />
@@ -569,7 +575,10 @@ function Tab90j({ d, global }: { d: Periode90j; global: AnalyticsGlobal }) {
       <SecScoreFidelite d={d} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <Metric label="Membres actifs"      value={fmtNombre(d.membresActifs)}     varRatio={d.variations.membresActifs} />
+        {/* Pas de varRatio ici : lastAppOpenAt ne garde que la dernière ouverture de
+            chaque membre, donc une variation sur une fenêtre passée sous-compte
+            massivement et n'est pas fiable. Le décompte lui-même reste juste. */}
+        <Metric label="Membres actifs"      value={fmtNombre(d.membresActifs)} />
         <Metric label="Nouveaux membres"    value={fmtNombre(d.nouveauxMembres)} />
         <Metric label="Revenus"             value={fmtArgent(d.revenus)}            varRatio={d.variations.revenus} />
         <Metric label="Rev. par membre"     value={fmtArgent(d.revenuParMembre)} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import type {
   AnalyticsGlobal, AnalyticsFranchise,
@@ -41,13 +41,15 @@ interface ColDef {
   align?: "left" | "right";
 }
 
-function Table({ cols, data, csvName }: { cols: ColDef[]; data: Row[]; csvName: string }) {
+function Table({ cols, data, csvName, pageSize }: { cols: ColDef[]; data: Row[]; csvName: string; pageSize?: number }) {
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(0);
 
   function toggleSort(key: string) {
     if (sortCol === key) setSortDir((d) => d === "asc" ? "desc" : "asc");
     else { setSortCol(key); setSortDir("asc"); }
+    setPage(0);
   }
 
   const sorted = useMemo(() => {
@@ -61,7 +63,15 @@ function Table({ cols, data, csvName }: { cols: ColDef[]; data: Row[]; csvName: 
     });
   }, [data, sortCol, sortDir]);
 
+  // Revient à la page 1 si les données changent sous nos pieds (changement de
+  // mois/franchise) — évite d'atterrir sur une page devenue vide.
+  useEffect(() => { setPage(0); }, [data]);
+
+  const totalPages = pageSize ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
+  const paged = pageSize ? sorted.slice(page * pageSize, (page + 1) * pageSize) : sorted;
+
   function handleExport() {
+    // Exporte toujours l'ensemble des lignes triées, pas seulement la page affichée.
     const rows: string[][] = [
       cols.map((c) => c.header),
       ...sorted.map((row) => cols.map((c) => {
@@ -78,7 +88,24 @@ function Table({ cols, data, csvName }: { cols: ColDef[]; data: Row[]; csvName: 
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        {pageSize && totalPages > 1 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+              style={{ padding: "4px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                background: page === 0 ? "#F3F4F6" : "white", color: page === 0 ? "#9CA3AF" : "#374151",
+                border: "1px solid #E5E7EB", cursor: page === 0 ? "default" : "pointer" }}>
+              ←
+            </button>
+            <span style={{ fontSize: 12, color: "#6B7280" }}>{page + 1} / {totalPages}</span>
+            <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1}
+              style={{ padding: "4px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                background: page === totalPages - 1 ? "#F3F4F6" : "white", color: page === totalPages - 1 ? "#9CA3AF" : "#374151",
+                border: "1px solid #E5E7EB", cursor: page === totalPages - 1 ? "default" : "pointer" }}>
+              →
+            </button>
+          </div>
+        ) : <div />}
         <button onClick={handleExport} style={{
           padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
           background: "#F3F4F6", color: "#374151", border: "1px solid #D1D5DB", cursor: "pointer",
@@ -102,7 +129,7 @@ function Table({ cols, data, csvName }: { cols: ColDef[]; data: Row[]; csvName: 
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row, i) => (
+            {paged.map((row, i) => (
               <tr key={i} style={{ borderBottom: "1px solid #F9FAFB" }}>
                 {cols.map((c) => {
                   const v   = row[c.key];
@@ -245,7 +272,9 @@ function BlocSynthese({
           ["Visites", fmtNombre(synthese.visites),    ""],
           ["Points distribués", fmtNombre(synthese.pointsDistribues),    fmtArgent(snapshot.valeurPointsDistribues)],
           ["Points rachetés",   fmtNombre(synthese.pointsRachetes),      `${fmtArgent(synthese.valeurRachetee)} food cost`],
-          ["Bonus attribués",   fmtNombre(synthese.bonusAttribues),      `valeur ${fmtArgent(synthese.valeurBonus)}`],
+          // Pas de valeur $ affichée ici : aucun taux de conversion points → dollars
+          // n'existe dans l'app, donc synthese.valeurBonus n'a aucune source valide.
+          ["Bonus attribués",   fmtNombre(synthese.bonusAttribues),      ""],
         ] as [string, string, string][]).map(([label, val, sub]) => (
           <div key={label} style={{ padding: "12px 16px", background: "#F9FAFB", borderRadius: 10 }}>
             <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4 }}>{label}</div>
@@ -420,7 +449,7 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
             </span>
           )}
         </h3>
-        <Table cols={colsFactures} data={factures as unknown as Row[]} csvName={`factures-${moisRef}`} />
+        <Table cols={colsFactures} data={factures as unknown as Row[]} csvName={`factures-${moisRef}`} pageSize={5} />
       </div>
 
       {/* ── Réclamations ── */}

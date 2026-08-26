@@ -26,6 +26,21 @@ function varText(r: number) {
   const abs = Math.abs(r * 100).toLocaleString("fr-CA", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return `${r >= 0 ? "+" : "-"}${abs} %`;
 }
+/** Une variation relative sur un décompte non négatif (membres, ventes, revenus,
+ *  panier moyen) ne peut mathématiquement jamais descendre sous -100 % — on ne
+ *  peut pas perdre plus qu'il n'y en avait. Une valeur en deçà (ex: -302 %) signale
+ *  une incohérence dans les données reçues (portailSyncJob, hors du portail) plutôt
+ *  qu'une vraie variation ; on l'affiche comme telle plutôt que d'inventer un chiffre. */
+function isRatioPlausible(r: number) { return r >= -1; }
+
+interface VariationDisplay { color: string; text: string }
+
+/** Affichage pour une variation classique (ratio pré-calculé côté CF), avec le
+ *  garde-fou -100 % pour les valeurs mathématiquement impossibles. */
+function variationDisplay(ratio: number): VariationDisplay {
+  if (!isRatioPlausible(ratio)) return { color: "#9CA3AF", text: "— donnée à vérifier" };
+  return { color: varColor(ratio), text: `${varArrow(ratio)} ${varText(ratio)}` };
+}
 
 // ─── Titre de section ─────────────────────────────────────────────────────────
 function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
@@ -233,19 +248,37 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
         <div style={CARD}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
             {([
-              ["Revenus",        variations.revenus,       fmtArgent(p30v.revenus)],
-              ["Ventes",         variations.ventes,        fmtNombre(p30v.ventes)],
-              ["Membres actifs", variations.membresActifs, fmtNombre(p30v.membresActifs)],
-              ["Panier moyen",   variations.panierMoyen,   fmtArgent(p30v.panierMoyen)],
-            ] as [string, number, string][]).map(([lbl, ratio, val]) => (
+              ["Revenus", variationDisplay(variations.revenus), fmtArgent(p30v.revenus)],
+              ["Ventes",  variationDisplay(variations.ventes),  fmtNombre(p30v.ventes)],
+            ] as [string, VariationDisplay, string][]).map(([lbl, disp, val]) => (
               <div key={lbl} style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{val}</div>
-                <div style={{ fontSize: 13, color: varColor(ratio), fontWeight: 600, marginTop: 4 }}>
-                  {varArrow(ratio)} {varText(ratio)}
+                <div style={{ fontSize: 13, color: disp.color, fontWeight: 600, marginTop: 4 }}>
+                  {disp.text}
                 </div>
                 <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>{lbl}</div>
               </div>
             ))}
+            {/* Membres actifs : décompte seul, sans variation. lastAppOpenAt ne garde
+                que la dernière ouverture de chaque membre — un décompte sur une fenêtre
+                passée sous-compte massivement, donc aucune variation fiable n'est
+                calculable. Le décompte lui-même reste juste. */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{fmtNombre(p30v.membresActifs)}</div>
+              <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Membres actifs</div>
+            </div>
+            {(() => {
+              const disp = variationDisplay(variations.panierMoyen);
+              return (
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{fmtArgent(p30v.panierMoyen)}</div>
+                  <div style={{ fontSize: 13, color: disp.color, fontWeight: 600, marginTop: 4 }}>
+                    {disp.text}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Panier moyen</div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </section>
