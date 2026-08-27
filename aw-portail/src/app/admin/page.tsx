@@ -9,7 +9,7 @@ import {
   markNotificationRead, markActionDone, getNotifStyle,
   type NotificationDoc,
 } from "@/lib/notifications";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { useClients } from "@/hooks/useClients";
 import type { Client } from "@/types/admin";
 import { CheckCircle2, Clock, TrendingUp, Users, Check, Bell } from "lucide-react";
@@ -87,49 +87,90 @@ export default function AdminDashboard() {
   const [notifPage, setNotifPage]         = useState(0);
 
   // Notifications admin — une subscription par client (sous-collection clients/{id}/notifs)
-  // Évite une collection top-level sans règles Firestore
+  // + une subscription fixe sur notifs_internes (tâches "À faire" sans client lié).
+  // Évite une collection top-level pour les notifications liées à un client.
   useEffect(() => {
-    if (clients.length === 0) return;
+    const myUid = auth.currentUser?.uid ?? null;
 
-    // Map clientId → notifications non lues destinées à l'admin
+    // Une notification sans destinataireUid se comporte exactement comme
+    // avant (visible par tout admin) ; avec destinataireUid, seul ce membre
+    // du personnel précis la voit.
+    function visiblePourMoi(n: NotificationDoc): boolean {
+      return n.destinataire === "admin" && !n.lu && (!n.destinataireUid || n.destinataireUid === myUid);
+    }
+
+    // Map clé (clientId ou "_internes") → notifications non lues destinées à l'admin
     const notifMap = new Map<string, NotificationDoc[]>();
     const unsubs: Array<() => void> = [];
 
-    clients.forEach((c) => {
-      const unsub = onSnapshot(
-        collection(db, "clients", c.id, "notifs"),
-        (snap) => {
-          const clientNotifs = snap.docs
-            .map((d) => {
-              const data = d.data();
-              return {
-                id:              d.id,
-                type:            data.type            ?? "",
-                destinataire:    data.destinataire     ?? "admin",
-                clientId:        data.clientId         ?? c.id,
-                clientNom:       data.clientNom        ?? c.nom,
-                auteurRole:      data.auteurRole        ?? "client",
-                description:     data.description      ?? "",
-                lien:            data.lien             ?? "",
-                date:            data.date instanceof Timestamp ? data.date.toDate() : null,
-                lu:              data.lu               ?? false,
-                actionRequise:   data.actionRequise    ?? false,
-                actionCompletee: data.actionCompletee  ?? false,
-              } as NotificationDoc;
-            })
-            .filter((n) => n.destinataire === "admin" && !n.lu);
+    function recalc() {
+      const merged = Array.from(notifMap.values())
+        .flat()
+        .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+      setNotifPage(0);
+      setNotifications(merged);
+    }
 
-          notifMap.set(c.id, clientNotifs);
-
-          const merged = Array.from(notifMap.values())
-            .flat()
-            .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
-          setNotifPage(0);
-          setNotifications(merged);
-        }
-      );
-      unsubs.push(unsub);
+    // Notifications internes (pas de client lié — ex. tâches À faire)
+    const unsubInternes = onSnapshot(collection(db, "notifs_internes"), (snap) => {
+      const internes = snap.docs
+        .map((d) => {
+          const data = d.data();
+          return {
+            id:              d.id,
+            type:            data.type            ?? "",
+            destinataire:    data.destinataire     ?? "admin",
+            clientId:        data.clientId         ?? null,
+            clientNom:       data.clientNom        ?? "",
+            auteurRole:      data.auteurRole        ?? "admin",
+            description:     data.description      ?? "",
+            lien:            data.lien             ?? "",
+            date:            data.date instanceof Timestamp ? data.date.toDate() : null,
+            lu:              data.lu               ?? false,
+            actionRequise:   data.actionRequise    ?? false,
+            actionCompletee: data.actionCompletee  ?? false,
+            destinataireUid: data.destinataireUid  ?? undefined,
+          } as NotificationDoc;
+        })
+        .filter(visiblePourMoi);
+      notifMap.set("_internes", internes);
+      recalc();
     });
+    unsubs.push(unsubInternes);
+
+    if (clients.length > 0) {
+      clients.forEach((c) => {
+        const unsub = onSnapshot(
+          collection(db, "clients", c.id, "notifs"),
+          (snap) => {
+            const clientNotifs = snap.docs
+              .map((d) => {
+                const data = d.data();
+                return {
+                  id:              d.id,
+                  type:            data.type            ?? "",
+                  destinataire:    data.destinataire     ?? "admin",
+                  clientId:        data.clientId         ?? c.id,
+                  clientNom:       data.clientNom        ?? c.nom,
+                  auteurRole:      data.auteurRole        ?? "client",
+                  description:     data.description      ?? "",
+                  lien:            data.lien             ?? "",
+                  date:            data.date instanceof Timestamp ? data.date.toDate() : null,
+                  lu:              data.lu               ?? false,
+                  actionRequise:   data.actionRequise    ?? false,
+                  actionCompletee: data.actionCompletee  ?? false,
+                  destinataireUid: data.destinataireUid  ?? undefined,
+                } as NotificationDoc;
+              })
+              .filter(visiblePourMoi);
+
+            notifMap.set(c.id, clientNotifs);
+            recalc();
+          }
+        );
+        unsubs.push(unsub);
+      });
+    }
 
     return () => unsubs.forEach((u) => u());
   }, [clients]);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Kanban, Users, CalendarDays, Settings, LogOut, Sparkles, Inbox, BookOpen } from "lucide-react";
+import { LayoutDashboard, Kanban, Users, CalendarDays, Settings, LogOut, Sparkles, Inbox, BookOpen, ListTodo } from "lucide-react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: "Calendrier", icon: CalendarDays,    href: "/admin/calendrier" },
   { label: "Nouveautés", icon: Sparkles,        href: "/admin/nouveautes" },
   { label: "Documentation", icon: BookOpen,     href: "/admin/documentation" },
+  { label: "À faire",    icon: ListTodo,        href: "/admin/a-faire" },
   { label: "Paramètres", icon: Settings,        href: "/admin/parametres" },
 ];
 

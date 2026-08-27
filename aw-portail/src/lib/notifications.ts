@@ -43,7 +43,8 @@ export interface NotificationDoc {
   id: string;
   type: string;
   destinataire: "admin" | "client";
-  clientId: string;
+  /** null pour les notifications internes (collection racine notifs_internes, sans client lié). */
+  clientId: string | null;
   clientNom: string;
   auteurRole: "admin" | "client";
   description: string;
@@ -52,6 +53,13 @@ export interface NotificationDoc {
   lu: boolean;
   actionRequise: boolean;
   actionCompletee: boolean;
+  /**
+   * Optionnel — cible un membre du personnel précis (uid) plutôt que
+   * "n'importe quel admin". Absent partout ailleurs dans le système : son
+   * absence reproduit exactement le comportement actuel (visible par tout
+   * admin). Introduit pour les notifications de tâches assignées.
+   */
+  destinataireUid?: string;
 }
 
 // ─── Helpers privés ──────────────────────────────────────────────────────────
@@ -119,19 +127,24 @@ export async function createDualNotification(
 }
 
 /**
- * Marque une notification comme lue (et la retire de la vue "non lus").
- * Requiert clientId car les notifications sont stockées sous clients/{clientId}/notifs.
+ * Référence d'une notification — clients/{clientId}/notifs/{id} si liée à un
+ * client, sinon notifs_internes/{id} à la racine (notifications de personnel
+ * sans client associé, ex. tâches "À faire").
  */
-export async function markNotificationRead(notifId: string, clientId: string): Promise<void> {
-  await updateDoc(doc(db, "clients", clientId, "notifs", notifId), { lu: true });
+function notifRef(notifId: string, clientId: string | null) {
+  return clientId
+    ? doc(db, "clients", clientId, "notifs", notifId)
+    : doc(db, "notifs_internes", notifId);
 }
 
-/**
- * Marque l'action comme complétée + la notification comme lue.
- * Requiert clientId car les notifications sont stockées sous clients/{clientId}/notifs.
- */
-export async function markActionDone(notifId: string, clientId: string): Promise<void> {
-  await updateDoc(doc(db, "clients", clientId, "notifs", notifId), {
+/** Marque une notification comme lue (et la retire de la vue "non lus"). */
+export async function markNotificationRead(notifId: string, clientId: string | null): Promise<void> {
+  await updateDoc(notifRef(notifId, clientId), { lu: true });
+}
+
+/** Marque l'action comme complétée + la notification comme lue. */
+export async function markActionDone(notifId: string, clientId: string | null): Promise<void> {
+  await updateDoc(notifRef(notifId, clientId), {
     actionCompletee: true,
     lu:              true,
   });
@@ -223,6 +236,9 @@ export const NOTIF_STYLE: Record<string, NotifStyle> = {
   // Rencontre mensuelle (support)
   creneau_accepte:     { emoji: "✅", bg: "#F0FDF4", border: "#BBF7D0", text: "#166534", label: "Rencontre" },
   creneau_refuse:      { emoji: "📆", bg: "#FEF2F2", border: "#FECACA", text: "#991B1B", label: "Rencontre" },
+
+  // À faire (personnel interne)
+  tache_assignee:      { emoji: "📋", bg: "#EFF6FF", border: "#BFDBFE", text: "#1E40AF", label: "À faire" },
 };
 
 export function getNotifStyle(type: string): NotifStyle {

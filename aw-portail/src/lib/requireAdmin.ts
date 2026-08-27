@@ -37,3 +37,36 @@ export async function requireAdmin(req: NextRequest): Promise<string | null> {
   const result = await requireAdminDetailed(req);
   return result.ok ? result.uid : null;
 }
+
+export type StaffRole = "admin" | "employe";
+
+export type StaffAuthResult =
+  | { ok: true; uid: string; role: StaffRole }
+  | { ok: false; status: 401 | 403; error: string };
+
+/**
+ * Vérifie que la requête provient d'un membre du personnel authentifié —
+ * admin ou employé (cookie session_admin, même espace de session que l'admin).
+ * Réservée aux routes internes (ex. /api/admin/taches) où les deux rôles
+ * doivent pouvoir agir, à charge pour l'appelant d'appliquer ses propres
+ * restrictions selon le rôle retourné.
+ *
+ * Note : /api/auth/session ne pose actuellement le cookie session_admin que
+ * pour role === "admin" — un compte "employe" ne peut donc pas encore
+ * s'authentifier ici tant que ce point n'est pas corrigé séparément.
+ */
+export async function requireStaff(req: NextRequest): Promise<StaffAuthResult> {
+  const session = req.cookies.get("session_admin")?.value;
+  if (!session) return { ok: false, status: 401, error: "Non authentifié" };
+  try {
+    const decoded = await adminAuth.verifySessionCookie(session, true);
+    const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
+    const role = userSnap.data()?.role;
+    if (!userSnap.exists || (role !== "admin" && role !== "employe")) {
+      return { ok: false, status: 403, error: "Accès réservé au personnel AW Solution" };
+    }
+    return { ok: true, uid: decoded.uid, role };
+  } catch {
+    return { ok: false, status: 401, error: "Session invalide" };
+  }
+}
