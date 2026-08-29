@@ -40,11 +40,13 @@ import {
   Copy,
   Check,
   RefreshCw,
+  BarChart3,
 } from "lucide-react";
 import { AdminBrandingViewer } from "@/components/admin/AdminBrandingViewer";
 import { AdminRoadmapViewer } from "@/components/admin/AdminRoadmapViewer";
 import { AdminCalendrierClient } from "@/components/calendrier/AdminCalendrierClient";
 import { AdminDocumentationTab } from "@/components/admin/AdminDocumentationTab";
+import { AdminDonneesViewer } from "@/components/admin/AdminDonneesViewer";
 
 interface ContratInfo {
   urlHTML:        string;
@@ -132,12 +134,13 @@ function AdminClientDetailContent() {
   const router    = useRouter();
   const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<"fiche" | "messages" | "branding" | "roadmap" | "calendrier" | "documentation">(
+  const [activeTab, setActiveTab] = useState<"fiche" | "messages" | "branding" | "roadmap" | "calendrier" | "documentation" | "donnees">(
     searchParams.get("tab") === "messages"      ? "messages"      :
     searchParams.get("tab") === "branding"      ? "branding"      :
     searchParams.get("tab") === "roadmap"       ? "roadmap"       :
     searchParams.get("tab") === "calendrier"    ? "calendrier"    :
-    searchParams.get("tab") === "documentation" ? "documentation" : "fiche"
+    searchParams.get("tab") === "documentation" ? "documentation" :
+    searchParams.get("tab") === "donnees"       ? "donnees"       : "fiche"
   );
 
   const [client, setClient]   = useState<ClientDetail | null>(null);
@@ -487,6 +490,17 @@ function AdminClientDetailContent() {
             <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t" />
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("donnees")}
+          className="px-4 py-2 text-sm font-medium transition-colors relative flex items-center gap-2"
+          style={{ color: activeTab === "donnees" ? "#0362E3" : "#6B7280" }}
+        >
+          <BarChart3 size={14} />
+          Données
+          {activeTab === "donnees" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t" />
+          )}
+        </button>
       </div>
 
       {activeTab === "fiche" && (
@@ -777,6 +791,11 @@ function AdminClientDetailContent() {
             clientNom={client.nom}
             clientCourriel={client.courriel}
           />
+        </div>
+      )}
+      {activeTab === "donnees" && (
+        <div style={{ paddingTop: 8 }}>
+          <AdminDonneesViewer clientId={id} forfait={client.forfait} />
         </div>
       )}
     </div>

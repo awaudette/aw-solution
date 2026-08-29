@@ -5,6 +5,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useClientData } from "@/hooks/useClientData";
 import { useAnalyticsData } from "@/hooks/useAnalyticsData";
 import type { AnalyticsFranchise } from "@/types/analytics";
+import { TABS, type TabId } from "@/lib/donneesTabs";
 import OngletResume              from "@/components/donnees/OngletResume";
 import OngletAlertes             from "@/components/donnees/OngletAlertes";
 import OngletSegmentation        from "@/components/donnees/OngletSegmentation";
@@ -12,19 +13,6 @@ import OngletAnalytique          from "@/components/donnees/OngletAnalytique";
 import OngletAnalytiqueEssentiel from "@/components/donnees/OngletAnalytiqueEssentiel";
 import OngletComptabilite        from "@/components/donnees/OngletComptabilite";
 import OngletHistorique          from "@/components/donnees/OngletHistorique";
-
-// ─── Définition des onglets ─────────────────────────────────────────────────
-// « prestige: true » = masqué pour Essentiel
-const TABS = [
-  { id: "resume",        label: "Résumé",       prestige: false },
-  { id: "alertes",       label: "Alertes",       prestige: true  },
-  { id: "segmentation",  label: "Segmentation",  prestige: true  },
-  { id: "analytique",    label: "Analytique",    prestige: false }, // Essentiel: OngletAnalytiqueEssentiel / Prestige: OngletAnalytique
-  { id: "comptabilite",  label: "Comptabilité",  prestige: false },
-  { id: "historique",    label: "Historique",    prestige: false },
-] as const;
-
-type TabId = (typeof TABS)[number]["id"];
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 const S = {
