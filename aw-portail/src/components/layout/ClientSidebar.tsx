@@ -36,20 +36,27 @@ function getInitials(nom: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-const CONTRAT_ITEM: NavItem  = { label: "Contrat",  icon: FileText,    slug: "contrat"  };
-const PAIEMENT_ITEM: NavItem = { label: "Paiement", icon: CreditCard,  slug: "paiement" };
-
-const BASE_NAV: NavItem[] = [
-  { label: "Accueil",           icon: Home,        slug: "accueil"      },
-  { label: "Calendrier",        icon: CalendarDays, slug: "calendrier"  },
-  { label: "Nouveautés",        icon: Sparkles,    slug: "nouveautes"   },
-  { label: "Branding",          icon: Palette,     slug: "branding"     },
-  { label: "Feuille de route",  icon: Map,         slug: "roadmap"      },
-  { label: "Documentation",     icon: BookOpen,    slug: "documentation"},
-  { label: "Données & rapports",icon: BarChart2,   slug: "donnees"      },
-  { label: "Support",           icon: LifeBuoy,    slug: "support"      },
-  { label: "Paramètres",        icon: Settings,    slug: "parametres"   },
+// ─── Ordre maître de la navigation ─────────────────────────────────────────
+// Quatre entrées (contrat, paiement, branding, roadmap) descendent en bas du
+// menu, indépendamment les unes des autres, dès que leur condition Firestore
+// respective est remplie — voir isSectionDone() plus bas. Les autres entrées
+// ne bougent jamais.
+const MASTER_NAV: NavItem[] = [
+  { label: "Accueil",            icon: Home,         slug: "accueil"      },
+  { label: "Contrat",            icon: FileText,     slug: "contrat"      },
+  { label: "Paiement",           icon: CreditCard,   slug: "paiement"     },
+  { label: "Branding",           icon: Palette,      slug: "branding"     },
+  { label: "Feuille de route",   icon: Map,          slug: "roadmap"      },
+  { label: "Documentation",      icon: BookOpen,     slug: "documentation"},
+  { label: "Données & rapports", icon: BarChart2,    slug: "donnees"      },
+  { label: "Calendrier",         icon: CalendarDays, slug: "calendrier"   },
+  { label: "Nouveautés",         icon: Sparkles,     slug: "nouveautes"   },
+  { label: "Support",            icon: LifeBuoy,     slug: "support"      },
+  { label: "Paramètres",         icon: Settings,     slug: "parametres"   },
 ];
+
+/** Slugs éligibles à descendre en bas du menu une fois réglés. */
+const DESCENDABLE_SLUGS = new Set(["contrat", "paiement", "branding", "roadmap"]);
 
 export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?: (v: boolean) => void }) {
   const [expanded, setExpanded]             = useState(false);
@@ -57,6 +64,9 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [clientNom, setClientNom]           = useState("");
   const [clientColor, setClientColor]       = useState("#0362E3");
+  const [brandingComplete, setBrandingComplete]   = useState(false);
+  const [paiementComplete, setPaiementComplete]   = useState(false);
+  const [lancementComplete, setLancementComplete] = useState(false);
 
   function handleExpand(v: boolean) {
     setExpanded(v);
@@ -82,8 +92,9 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
       unsubBranding = onSnapshot(
         doc(db, "clients", clientId, "branding", "main"),
         (bSnap) => {
-          const couleurPrincipale = bSnap.exists() ? (bSnap.data().couleurPrincipale ?? "") : "";
-          setClientColor(couleurPrincipale || fallback);
+          const bData = bSnap.exists() ? bSnap.data() : {};
+          setClientColor((bData.couleurPrincipale ?? "") || fallback);
+          setBrandingComplete(!!bData.brandingCompletedAt);
         },
       );
     });
@@ -102,10 +113,104 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
     });
   }, [clientId]);
 
-  // Contrat en haut si en_attente, en bas si signé
-  const navItems: NavItem[] = contratSigne
-    ? [BASE_NAV[0], PAIEMENT_ITEM, ...BASE_NAV.slice(1), CONTRAT_ITEM]
-    : [BASE_NAV[0], CONTRAT_ITEM, PAIEMENT_ITEM, ...BASE_NAV.slice(1)];
+  // Un seul listener pour les deux conditions issues de roadmap/main
+  // (paiement et lancement) — évite un deuxième onSnapshot sur ce document.
+  useEffect(() => {
+    return onSnapshot(doc(db, "clients", clientId, "roadmap", "main"), (snap) => {
+      const etapes = snap.exists()
+        ? ((snap.data().etapes ?? []) as { id: string; statut: string }[])
+        : [];
+      setPaiementComplete(etapes.some((e) => e.id === "paiement" && e.statut === "complete"));
+      setLancementComplete(etapes.some((e) => e.id === "lancement" && e.statut === "complete"));
+    });
+  }, [clientId]);
+
+  function isSectionDone(slug: string): boolean {
+    switch (slug) {
+      case "contrat":  return contratSigne;
+      case "paiement": return paiementComplete;
+      case "branding": return brandingComplete;
+      case "roadmap":  return lancementComplete;
+      default:         return false;
+    }
+  }
+
+  // Ordre du haut : tout ce qui n'est pas descendable, + le descendable pas
+  // encore réglé. Ordre du bas : le descendable réglé, toujours dans l'ordre
+  // fixe du tableau maître (pas l'ordre chronologique de complétion) — un
+  // menu prévisible d'une visite à l'autre.
+  const topItems = MASTER_NAV.filter(
+    (item) => !DESCENDABLE_SLUGS.has(item.slug) || !isSectionDone(item.slug),
+  );
+  const bottomItems = MASTER_NAV.filter(
+    (item) => DESCENDABLE_SLUGS.has(item.slug) && isSectionDone(item.slug),
+  );
+
+  function renderNavItem({ label, icon: Icon, slug }: NavItem) {
+    const href   = `/client/${clientId}/${slug}`;
+    const active = pathname === href || pathname.startsWith(`${href}/`);
+
+    const badge = slug === "support" && unreadMessages > 0 ? unreadMessages : 0;
+
+    return (
+      <Link
+        key={slug}
+        href={href}
+        className="flex items-center gap-3 mx-2 px-2 py-2 rounded-md text-sm transition-colors group relative"
+        style={{
+          backgroundColor: active ? "#EFF6FF" : "transparent",
+          color:           active ? "#0362E3" : "#6B7280",
+        }}
+        onMouseEnter={(e) => {
+          if (!active) {
+            (e.currentTarget as HTMLElement).style.backgroundColor = "#F9FAFB";
+            (e.currentTarget as HTMLElement).style.color = "#111827";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!active) {
+            (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+            (e.currentTarget as HTMLElement).style.color = "#6B7280";
+          }
+        }}
+      >
+        <div className="relative flex-shrink-0">
+          <Icon size={18} strokeWidth={active ? 2 : 1.5} />
+          {badge > 0 && (
+            <span
+              className="absolute flex items-center justify-center font-semibold"
+              style={{
+                top: -5, right: -5, minWidth: 14, height: 14,
+                padding: "0 3px", borderRadius: 7, fontSize: 9,
+                background: "#EF4444", color: "#fff", lineHeight: 1,
+              }}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {expanded && (
+          <span className="whitespace-nowrap font-medium overflow-hidden flex-1">{label}</span>
+        )}
+        {expanded && badge > 0 && (
+          <span
+            className="flex items-center justify-center font-semibold flex-shrink-0"
+            style={{
+              minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9,
+              fontSize: 11, background: "#EF4444", color: "#fff",
+            }}
+          >
+            {badge}
+          </span>
+        )}
+        {!expanded && (
+          <div className="absolute left-14 px-2 py-1 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+            {label}
+          </div>
+        )}
+      </Link>
+    );
+  }
 
   async function handleLogout() {
     await fetch("/api/auth/session", {
@@ -141,72 +246,12 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-hidden">
-        {navItems.map(({ label, icon: Icon, slug }) => {
-          const href   = `/client/${clientId}/${slug}`;
-          const active = pathname === href || pathname.startsWith(`${href}/`);
-
-          const badge = slug === "support" && unreadMessages > 0 ? unreadMessages : 0;
-
-          return (
-            <Link
-              key={slug}
-              href={href}
-              className="flex items-center gap-3 mx-2 px-2 py-2 rounded-md text-sm transition-colors group relative"
-              style={{
-                backgroundColor: active ? "#EFF6FF" : "transparent",
-                color:           active ? "#0362E3" : "#6B7280",
-              }}
-              onMouseEnter={(e) => {
-                if (!active) {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = "#F9FAFB";
-                  (e.currentTarget as HTMLElement).style.color = "#111827";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!active) {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-                  (e.currentTarget as HTMLElement).style.color = "#6B7280";
-                }
-              }}
-            >
-              <div className="relative flex-shrink-0">
-                <Icon size={18} strokeWidth={active ? 2 : 1.5} />
-                {badge > 0 && (
-                  <span
-                    className="absolute flex items-center justify-center font-semibold"
-                    style={{
-                      top: -5, right: -5, minWidth: 14, height: 14,
-                      padding: "0 3px", borderRadius: 7, fontSize: 9,
-                      background: "#EF4444", color: "#fff", lineHeight: 1,
-                    }}
-                  >
-                    {badge}
-                  </span>
-                )}
-              </div>
-              {expanded && (
-                <span className="whitespace-nowrap font-medium overflow-hidden flex-1">{label}</span>
-              )}
-              {expanded && badge > 0 && (
-                <span
-                  className="flex items-center justify-center font-semibold flex-shrink-0"
-                  style={{
-                    minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9,
-                    fontSize: 11, background: "#EF4444", color: "#fff",
-                  }}
-                >
-                  {badge}
-                </span>
-              )}
-              {!expanded && (
-                <div className="absolute left-14 px-2 py-1 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                  {label}
-                </div>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-y-auto">
+        {topItems.map(renderNavItem)}
+        {bottomItems.length > 0 && (
+          <div className="mx-2 my-1.5 border-t border-gray-100" />
+        )}
+        {bottomItems.map(renderNavItem)}
       </nav>
 
       {/* Déconnexion */}
