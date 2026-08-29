@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { requireStaff } from "@/lib/requireAdmin";
 import { serializeOrganisation, isValidStaffUid, computeAutoDates } from "@/lib/organisations";
 import { ETAPE_VALUES, RECUPERABLE_VALUES, DATE_FIELDS, type Etape, type Recuperable } from "@/config/organisations";
+
+/**
+ * Sérialise une liste de docs organisations en résolvant le nombre
+ * d'interactions de chacun via une requête count() (agrégation — un seul
+ * read facturé, pas un fetch de toute la sous-collection), en parallèle.
+ */
+async function serializeWithInteractionCounts(docs: QueryDocumentSnapshot[]) {
+  return Promise.all(docs.map(async d => {
+    const countSnap = await d.ref.collection("interactions").count().get();
+    return serializeOrganisation(d.id, d.data(), countSnap.data().count);
+  }));
+}
 
 export async function GET(req: NextRequest) {
   const auth = await requireStaff(req);
@@ -14,13 +26,13 @@ export async function GET(req: NextRequest) {
   try {
     if (auth.role === "admin") {
       const snap = await adminDb.collection("organisations").orderBy("createdAt", "desc").get();
-      return NextResponse.json({ organisations: snap.docs.map(d => serializeOrganisation(d.id, d.data())) });
+      const organisations = await serializeWithInteractionCounts(snap.docs);
+      return NextResponse.json({ organisations });
     }
 
     // Employé : uniquement les dossiers dont il est propriétaire.
     const snap = await adminDb.collection("organisations").where("proprietaire", "==", auth.uid).get();
-    const organisations = snap.docs
-      .map(d => serializeOrganisation(d.id, d.data()))
+    const organisations = (await serializeWithInteractionCounts(snap.docs))
       .sort((a, b) => {
         const aMs = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const bMs = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -104,6 +116,9 @@ export async function POST(req: NextRequest) {
       recuperable: (body.recuperable as Recuperable) ?? null,
       clientId: null,
       derniereInteraction: null,
+      etapeAvantPerte: null,
+      dateEtapePerdu: null,
+      tacheRelanceId: null,
       createdAt: now,
       createdBy: auth.uid,
       // Toutes les dates par défaut à null, puis écrasées par celles fournies explicitement.
@@ -111,6 +126,7 @@ export async function POST(req: NextRequest) {
       datePremierContact: null,
       dateDemo: null,
       datePropositionEnvoyee: null,
+      dateNegociation: null,
       dateSignature: null,
       dateLancement: null,
       dateChurn: null,

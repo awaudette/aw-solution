@@ -54,24 +54,50 @@ export const MOTIF_PERTE_LABELS: Record<MotifPerte, string> = {
 };
 
 /**
+ * Motifs d'annulation proposés quand le dossier était à l'étape "signe" —
+ * un ancien client qui annule, pas un prospect jamais converti. Liste
+ * distincte de MOTIF_PERTE_VALUES, choisie selon etapeAvantPerte.
+ */
+export const MOTIF_CHURN_VALUES = [
+  "pas_assez_de_resultats", "trop_complique", "manque_de_temps",
+  "fermeture_ou_vente_du_commerce", "prix", "concurrent",
+] as const;
+export type MotifChurn = (typeof MOTIF_CHURN_VALUES)[number];
+
+export const MOTIF_CHURN_LABELS: Record<MotifChurn, string> = {
+  pas_assez_de_resultats: "Pas assez de résultats",
+  trop_complique: "Trop compliqué",
+  manque_de_temps: "Manque de temps",
+  fermeture_ou_vente_du_commerce: "Fermeture ou vente du commerce",
+  prix: "Prix",
+  concurrent: "Concurrent",
+};
+
+/** Motif de perte, quel que soit le type de dossier — pour résoudre un libellé sans savoir d'avance lequel des deux vocabulaires s'applique. */
+export const MOTIF_LABELS_COMBINES: Record<string, string> = { ...MOTIF_PERTE_LABELS, ...MOTIF_CHURN_LABELS };
+
+/**
  * Étape → champ de date rempli automatiquement la première fois qu'elle est
  * atteinte (voir computeAutoDates dans src/lib/organisations.ts). "nouveau"
  * et "negociation" n'ont pas de champ correspondant — pas de remplissage
  * auto pour ces deux-là. dateLancement n'apparaît jamais ici : c'est une
  * date de livraison, toujours manuelle, jamais liée à une étape du CRM.
  */
+// "perdu" n'est PAS ici : son remplissage de date dépend de etapeAvantPerte
+// (dateChurn seulement si on vient de "signe") — logique spéciale gérée
+// directement dans la route PATCH, pas par ce mécanisme générique.
 export const ETAPE_DATE_FIELD: Partial<Record<Etape, string>> = {
   contacte: "datePremierContact",
   demo_faite: "dateDemo",
   proposition_envoyee: "datePropositionEnvoyee",
+  negociation: "dateNegociation",
   signe: "dateSignature",
-  perdu: "dateChurn",
 };
 
 /** Champs de date modifiables directement (auto-remplis ou à la main). */
 export const DATE_FIELDS = [
   "dateProchaineAction", "datePremierContact", "dateDemo",
-  "datePropositionEnvoyee", "dateSignature", "dateLancement",
+  "datePropositionEnvoyee", "dateNegociation", "dateSignature", "dateLancement",
   "dateChurn", "dateRelanceSuggeree",
 ] as const;
 
@@ -118,9 +144,11 @@ export interface Organisation {
   datePremierContact: Timestamp | null;
   dateDemo: Timestamp | null;
   datePropositionEnvoyee: Timestamp | null;
+  dateNegociation: Timestamp | null;
   dateSignature: Timestamp | null;
   /** Date de livraison (lancement réel) — jamais auto-remplie par le CRM. */
   dateLancement: Timestamp | null;
+  /** Rempli seulement si etapeAvantPerte === "signe" (ancien client qui annule) — jamais pour un prospect. */
   dateChurn: Timestamp | null;
   motifPerte: string | null;
   motifPerteDetail: string | null;
@@ -130,6 +158,12 @@ export interface Organisation {
   clientId: string | null;
   /** Date de la dernière interaction (manuelle ou automatique) — tenue à jour côté serveur à chaque ajout. */
   derniereInteraction: Timestamp | null;
+  /** Étape juste avant le passage à "perdu" — distingue prospect (jamais signé) d'ancien client (annulation). Effacé à la réactivation. */
+  etapeAvantPerte: Etape | null;
+  /** Toujours rempli au passage à "perdu", peu importe le type — contrairement à dateChurn qui ne l'est que pour un ancien client. Sert de "date de perte" générique à l'affichage. */
+  dateEtapePerdu: Timestamp | null;
+  /** Tâche de relance créée automatiquement quand le dossier est marqué récupérable avec une date — mise à jour plutôt que dupliquée si la date change. */
+  tacheRelanceId: string | null;
   createdAt: Timestamp;
   createdBy: string; // uid
 }
@@ -149,16 +183,21 @@ export interface InteractionDTO extends Omit<Interaction, "date"> {
 
 export interface OrganisationDTO extends Omit<Organisation,
   "dateProchaineAction" | "datePremierContact" | "dateDemo" | "datePropositionEnvoyee" |
-  "dateSignature" | "dateLancement" | "dateChurn" | "dateRelanceSuggeree" | "derniereInteraction" | "createdAt"
+  "dateNegociation" | "dateSignature" | "dateLancement" | "dateChurn" | "dateRelanceSuggeree" |
+  "derniereInteraction" | "dateEtapePerdu" | "createdAt"
 > {
   dateProchaineAction: string | null;
   datePremierContact: string | null;
   dateDemo: string | null;
   datePropositionEnvoyee: string | null;
+  dateNegociation: string | null;
   dateSignature: string | null;
   dateLancement: string | null;
   dateChurn: string | null;
   dateRelanceSuggeree: string | null;
   derniereInteraction: string | null;
+  dateEtapePerdu: string | null;
   createdAt: string | null;
+  /** Nombre d'interactions dans la sous-collection — agrégé côté serveur au listage, jamais stocké sur le document. */
+  interactionsCount: number;
 }

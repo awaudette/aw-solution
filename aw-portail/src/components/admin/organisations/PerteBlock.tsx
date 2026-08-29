@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { XCircle } from "lucide-react";
 import {
-  MOTIF_PERTE_VALUES, MOTIF_PERTE_LABELS, RECUPERABLE_VALUES,
-  type MotifPerte, type Recuperable, type OrganisationDTO,
+  MOTIF_PERTE_VALUES, MOTIF_PERTE_LABELS, MOTIF_CHURN_VALUES, MOTIF_CHURN_LABELS, RECUPERABLE_VALUES,
+  type Recuperable, type OrganisationDTO,
 } from "@/config/organisations";
 import type { OrganisationUpdateInput } from "@/hooks/useOrganisations";
 import { toDateInputValue, combineDateTimeToIso } from "@/lib/dateInputs";
@@ -22,7 +22,7 @@ export function PerteBlock({
   org: OrganisationDTO;
   onSave: (input: OrganisationUpdateInput) => Promise<void>;
 }) {
-  const [motifPerte, setMotifPerte] = useState<MotifPerte | null>((org.motifPerte as MotifPerte) ?? null);
+  const [motifPerte, setMotifPerte] = useState<string | null>(org.motifPerte ?? null);
   const [detail, setDetail]         = useState(org.motifPerteDetail ?? "");
   const [recuperable, setRecuperable] = useState<Recuperable | null>(org.recuperable);
   const [dateRelance, setDateRelance] = useState(toDateInputValue(org.dateRelanceSuggeree));
@@ -30,6 +30,13 @@ export function PerteBlock({
   const [error, setError]           = useState<string | null>(null);
 
   const aDesDonnees = !!(org.motifPerte || org.etape === "perdu");
+
+  // Ancien client qui annule (venait de "signe") vs prospect jamais converti
+  // — vocabulaire de motifs distinct, déterminé par l'étape enregistrée au
+  // moment du passage à "perdu".
+  const estAncienClient = org.etapeAvantPerte === "signe";
+  const motifValues: readonly string[] = estAncienClient ? MOTIF_CHURN_VALUES : MOTIF_PERTE_VALUES;
+  const motifLabels: Record<string, string> = estAncienClient ? MOTIF_CHURN_LABELS : MOTIF_PERTE_LABELS;
 
   async function handleSave() {
     setSaving(true);
@@ -61,15 +68,22 @@ export function PerteBlock({
 
   return (
     <div className="bg-white rounded-xl border border-red-100 p-4">
-      <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5 mb-3">
-        <XCircle size={14} /> Dossier perdu
-      </p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+          <XCircle size={14} /> Dossier perdu
+        </p>
+        {org.etapeAvantPerte && (
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-600 border border-red-100">
+            {estAncienClient ? "Ancien client" : "Prospect"}
+          </span>
+        )}
+      </div>
 
       <div className="flex flex-col gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Motif</label>
           <div className="flex flex-wrap gap-1.5">
-            {MOTIF_PERTE_VALUES.map((m) => (
+            {motifValues.map((m) => (
               <button
                 key={m}
                 type="button"
@@ -78,7 +92,7 @@ export function PerteBlock({
                   motifPerte === m ? "bg-red-50 border-red-200 text-red-600" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
                 }`}
               >
-                {MOTIF_PERTE_LABELS[m]}
+                {motifLabels[m]}
               </button>
             ))}
           </div>
@@ -111,9 +125,9 @@ export function PerteBlock({
           </div>
         )}
 
-        {org.dateChurn && (
+        {org.dateEtapePerdu && (
           <p className="text-xs text-gray-400">
-            Perdu le {new Date(org.dateChurn).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" })}
+            Perdu le {new Date(org.dateEtapePerdu).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" })}
           </p>
         )}
 

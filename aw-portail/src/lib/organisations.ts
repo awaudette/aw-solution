@@ -2,7 +2,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { Timestamp, type DocumentData, type DocumentReference } from "firebase-admin/firestore";
 import { ETAPE_DATE_FIELD, ETAPE_LABELS, type Etape } from "@/config/organisations";
 import type { StaffRole } from "@/lib/requireAdmin";
-import { getStaffUids } from "@/lib/taches";
+import { getStaffUids, createTacheRecord, updateTacheDateEcheance } from "@/lib/taches";
 
 function tsToIso(v: unknown): string | null {
   if (v && typeof v === "object" && "toDate" in v && typeof (v as { toDate: () => Date }).toDate === "function") {
@@ -11,8 +11,13 @@ function tsToIso(v: unknown): string | null {
   return null;
 }
 
-/** Convertit un document Firestore organisations/{id} en JSON sûr (Timestamp → ISO). */
-export function serializeOrganisation(id: string, data: DocumentData) {
+/**
+ * Convertit un document Firestore organisations/{id} en JSON sûr (Timestamp → ISO).
+ * `interactionsCount` est calculé par l'appelant (requête count() séparée) et
+ * injecté ici — 0 par défaut pour les endroits qui n'en ont pas besoin (ex.
+ * lecture d'un seul dossier, où le compte exact n'est pas affiché en liste).
+ */
+export function serializeOrganisation(id: string, data: DocumentData, interactionsCount = 0) {
   return {
     id,
     nom: data.nom ?? "",
@@ -32,6 +37,7 @@ export function serializeOrganisation(id: string, data: DocumentData) {
     datePremierContact: tsToIso(data.datePremierContact),
     dateDemo: tsToIso(data.dateDemo),
     datePropositionEnvoyee: tsToIso(data.datePropositionEnvoyee),
+    dateNegociation: tsToIso(data.dateNegociation),
     dateSignature: tsToIso(data.dateSignature),
     dateLancement: tsToIso(data.dateLancement),
     dateChurn: tsToIso(data.dateChurn),
@@ -41,8 +47,12 @@ export function serializeOrganisation(id: string, data: DocumentData) {
     dateRelanceSuggeree: tsToIso(data.dateRelanceSuggeree),
     clientId: data.clientId ?? null,
     derniereInteraction: tsToIso(data.derniereInteraction),
+    etapeAvantPerte: data.etapeAvantPerte ?? null,
+    dateEtapePerdu: tsToIso(data.dateEtapePerdu),
+    tacheRelanceId: data.tacheRelanceId ?? null,
     createdAt: tsToIso(data.createdAt),
     createdBy: data.createdBy,
+    interactionsCount,
   };
 }
 
@@ -211,4 +221,64 @@ export async function logChangementProprietaire(
     reaction: null,
     automatique: true,
   }, currentDerniereInteraction);
+}
+
+/**
+ * Crée l'entrée automatique dans interactions lors de la réactivation d'un
+ * dossier perdu (retour à "contacté") — appelée après que la route PATCH a
+ * déjà effacé les champs de perte.
+ */
+export async function logReactivation(
+  orgRef: DocumentReference,
+  auteur: string,
+  currentDerniereInteraction: Timestamp | null
+): Promise<void> {
+  await addInteractionAndTouch(orgRef, {
+    type: "note",
+    date: Timestamp.now(),
+    auteur,
+    texte: "Dossier réactivé",
+    reaction: null,
+    automatique: true,
+  }, currentDerniereInteraction);
+}
+
+/**
+ * Crée ou met à jour la tâche de relance liée à un dossier marqué récupérable
+ * avec une date de relance. Si `tacheRelanceIdActuel` pointe vers une tâche
+ * qui existe encore, sa date d'échéance est simplement mise à jour ; sinon
+ * (première fois, ou tâche supprimée depuis) une nouvelle tâche est créée.
+ * Renvoie l'id de la tâche (nouvelle ou existante) à stocker sur le dossier.
+ */
+export async function upsertRelanceTache(
+  org: { id: string; nom: string; proprietaire: string; clientId: string | null },
+  dateRelance: Timestamp,
+  tacheRelanceIdActuel: string | null,
+  actorUid: string
+): Promise<string | null> {
+  const dateRelanceIso = dateRelance.toDate().toISOString();
+
+  if (tacheRelanceIdActuel) {
+    const existing = await adminDb.collection("taches").doc(tacheRelanceIdActuel).get();
+    if (existing.exists) {
+      await updateTacheDateEcheance(tacheRelanceIdActuel, dateRelanceIso);
+      return tacheRelanceIdActuel;
+    }
+  }
+
+  const result = await createTacheRecord({
+    titre: `Relance : ${org.nom}`,
+    portee: "individuel",
+    assignes: [org.proprietaire],
+    dateEcheance: dateRelanceIso,
+    clientId: org.clientId,
+    lienType: "organisation",
+    lienId: org.id,
+    creePar: actorUid,
+  });
+  if (!result.ok) {
+    console.error("[upsertRelanceTache] échec création tâche", result.error);
+    return tacheRelanceIdActuel;
+  }
+  return result.id;
 }

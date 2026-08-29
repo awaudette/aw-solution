@@ -7,8 +7,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ETAPE_VALUES, ETAPE_LABELS, MOTIF_PERTE_VALUES, MOTIF_PERTE_LABELS, RECUPERABLE_VALUES,
-  type Etape, type MotifPerte, type Recuperable,
+  ETAPE_VALUES, ETAPE_LABELS, MOTIF_PERTE_VALUES, MOTIF_PERTE_LABELS,
+  MOTIF_CHURN_VALUES, MOTIF_CHURN_LABELS, RECUPERABLE_VALUES,
+  type Etape, type Recuperable,
 } from "@/config/organisations";
 import { combineDateTimeToIso, toDateInputValue } from "@/lib/dateInputs";
 import { ConfirmerSignatureDialog } from "./ConfirmerSignatureDialog";
@@ -30,8 +31,15 @@ export function EtapeDialog({
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState<string | null>(null);
 
-  // Champs du sous-flux "perdu"
-  const [motifPerte, setMotifPerte]           = useState<MotifPerte | null>(null);
+  // Champs du sous-flux "perdu" — le vocabulaire des motifs dépend de l'étape
+  // de départ : un ancien client qui annule (venait de "signe") se voit
+  // proposer des motifs de churn, un prospect jamais converti les motifs
+  // habituels. etapeAvantPerte (enregistré côté serveur) permettra plus tard
+  // de savoir lequel des deux vocabulaires s'applique à un motif déjà posé.
+  const motifValues: readonly string[] = etapeActuelle === "signe" ? MOTIF_CHURN_VALUES : MOTIF_PERTE_VALUES;
+  const motifLabels: Record<string, string> = etapeActuelle === "signe" ? MOTIF_CHURN_LABELS : MOTIF_PERTE_LABELS;
+
+  const [motifPerte, setMotifPerte]           = useState<string | null>(null);
   const [motifPerteDetail, setMotifPerteDetail] = useState("");
   const [recuperable, setRecuperable]         = useState<Recuperable | null>(null);
   const [dateRelance, setDateRelance]         = useState(toDateInputValue(null));
@@ -113,7 +121,7 @@ export function EtapeDialog({
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Motif de perte *</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {MOTIF_PERTE_VALUES.map((m) => (
+                  {motifValues.map((m) => (
                     <button
                       key={m}
                       type="button"
@@ -122,7 +130,7 @@ export function EtapeDialog({
                         motifPerte === m ? "bg-red-50 border-red-200 text-red-600" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
                       }`}
                     >
-                      {MOTIF_PERTE_LABELS[m]}
+                      {motifLabels[m]}
                     </button>
                   ))}
                 </div>

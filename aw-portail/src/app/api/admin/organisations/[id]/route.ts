@@ -5,6 +5,7 @@ import { requireStaff } from "@/lib/requireAdmin";
 import {
   loadOrganisationForAccess, serializeOrganisation, isValidStaffUid,
   computeAutoDates, logChangementEtape, logChangementProprietaire,
+  logReactivation, upsertRelanceTache,
 } from "@/lib/organisations";
 import { ETAPE_VALUES, RECUPERABLE_VALUES, DATE_FIELDS, type Etape, type Recuperable } from "@/config/organisations";
 
@@ -121,12 +122,50 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         // écrasée par le remplissage automatique.
         const donneesPourVerif = { ...data, ...update };
         Object.assign(update, computeAutoDates(nouvelleEtape, donneesPourVerif, explicitDateFields));
+
+        // Passage à "perdu" : enregistre l'étape de départ (distingue prospect
+        // vs ancien client qui annule) et la date de perte générique. dateChurn
+        // n'est rempli que pour un ancien client (venait de "signe"), et
+        // seulement si pas déjà fourni explicitement dans cette même requête.
+        if (nouvelleEtape === "perdu") {
+          update.etapeAvantPerte = ancienneEtape;
+          update.dateEtapePerdu = Timestamp.now();
+          if (ancienneEtape === "signe" && !explicitDateFields.has("dateChurn")) {
+            update.dateChurn = Timestamp.now();
+          }
+        }
+
+        // Réactivation (le dossier quitte "perdu") : efface tous les champs
+        // de perte, sauf ceux déjà fournis explicitement dans cette requête.
+        if (ancienneEtape === "perdu") {
+          const champsPerte: Record<string, unknown> = {
+            motifPerte: null, motifPerteDetail: null, recuperable: null,
+            dateRelanceSuggeree: null, dateChurn: null, etapeAvantPerte: null,
+            dateEtapePerdu: null, tacheRelanceId: null,
+          };
+          for (const [champ, valeur] of Object.entries(champsPerte)) {
+            if (!(champ in update)) update[champ] = valeur;
+          }
+        }
       }
     }
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: "Aucun champ modifiable fourni" }, { status: 400 });
     }
+
+    // Détermine, avant l'écriture, si une tâche de relance doit être créée ou
+    // mise à jour — seulement quand dateRelanceSuggeree est explicitement
+    // fournie dans cette requête (création initiale ou modification ultérieure).
+    const relanceDemandee = "dateRelanceSuggeree" in update;
+    const finalRecuperable = "recuperable" in update ? update.recuperable : data.recuperable;
+    const finalDateRelance = update.dateRelanceSuggeree as Timestamp | null | undefined;
+    const relanceEligible = relanceDemandee
+      && (finalRecuperable === "oui" || finalRecuperable === "peut_etre")
+      && finalDateRelance != null;
+    const tacheRelanceIdActuel: string | null = "tacheRelanceId" in update
+      ? (update.tacheRelanceId as string | null)
+      : (data.tacheRelanceId ?? null);
 
     await ref.update(update);
 
@@ -141,6 +180,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       } catch (err) {
         console.error("[organisations PATCH] journalisation du changement d'étape échouée", err);
       }
+
+      if (ancienneEtape === "perdu" && nouvelleEtape !== "perdu") {
+        try {
+          await logReactivation(ref, auth.uid, derniereInteractionActuelle);
+        } catch (err) {
+          console.error("[organisations PATCH] journalisation de la réactivation échouée", err);
+        }
+      }
     }
 
     if (proprietaireChange) {
@@ -150,6 +197,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         );
       } catch (err) {
         console.error("[organisations PATCH] journalisation de la réattribution échouée", err);
+      }
+    }
+
+    if (relanceEligible) {
+      try {
+        const finalProprietaire = ("proprietaire" in update ? update.proprietaire : data.proprietaire) as string;
+        const finalClientId = ("clientId" in update ? update.clientId : (data.clientId ?? null)) as string | null;
+        const finalNom = (update.nom as string) ?? data.nom;
+        const nouvelleTacheId = await upsertRelanceTache(
+          { id, nom: finalNom, proprietaire: finalProprietaire, clientId: finalClientId },
+          finalDateRelance as Timestamp,
+          tacheRelanceIdActuel,
+          auth.uid
+        );
+        if (nouvelleTacheId !== tacheRelanceIdActuel) {
+          await ref.update({ tacheRelanceId: nouvelleTacheId });
+        }
+      } catch (err) {
+        console.error("[organisations PATCH] tâche de relance échouée", err);
       }
     }
 

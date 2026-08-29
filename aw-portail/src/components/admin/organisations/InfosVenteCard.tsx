@@ -76,6 +76,7 @@ export function InfosVenteCard({
     { label: "Premier contact", value: org.datePremierContact },
     { label: "Démo", value: org.dateDemo },
     { label: "Proposition envoyée", value: org.datePropositionEnvoyee },
+    { label: "Négociation", value: org.dateNegociation },
     { label: "Signature", value: org.dateSignature },
   ];
 

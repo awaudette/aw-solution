@@ -30,6 +30,7 @@ export interface NewOrganisationInput {
   datePremierContact?: string | null;
   dateDemo?: string | null;
   datePropositionEnvoyee?: string | null;
+  dateNegociation?: string | null;
   dateSignature?: string | null;
   dateLancement?: string | null;
   dateChurn?: string | null;

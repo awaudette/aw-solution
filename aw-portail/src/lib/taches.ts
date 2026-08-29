@@ -1,7 +1,7 @@
 import { adminDb } from "@/lib/firebase-admin";
-import { FieldValue, FieldPath, type DocumentData, type DocumentReference } from "firebase-admin/firestore";
+import { FieldValue, FieldPath, Timestamp, type DocumentData, type DocumentReference } from "firebase-admin/firestore";
 import { resend } from "@/lib/resend";
-import { type Portee, type Priorite } from "@/config/taches";
+import { PORTEE_VALUES, PRIORITE_VALUES, type Portee, type Priorite } from "@/config/taches";
 import type { StaffRole } from "@/lib/requireAdmin";
 
 /** Uids du personnel (users/{uid}.role) correspondant aux rôles demandés. */
@@ -108,6 +108,105 @@ export async function loadTacheForAccess(id: string, uid: string, role: StaffRol
     return { ok: false, status: 403, error: "Cette tâche ne vous est pas assignée" };
   }
   return { ok: true, ref, data };
+}
+
+// ─── Création / modification centralisées des tâches ───────────────────────────
+
+export interface CreateTacheInput {
+  titre: string;
+  description?: string | null;
+  portee: Portee;
+  /** Ignoré si portee !== "individuel" (resolveAssignes recalcule alors depuis le personnel actuel). */
+  assignes?: unknown;
+  priorite?: Priorite;
+  dateEcheance?: string | null; // ISO
+  heureEcheance?: boolean;
+  clientId?: string | null;
+  lienType?: string | null;
+  lienId?: string | null;
+  /** uid de l'auteur — aussi utilisé comme actorUid pour exclure ce créateur de ses propres notifications. */
+  creePar: string;
+}
+
+export type CreateTacheResult =
+  | { ok: true; id: string }
+  | { ok: false; status: 400; error: string };
+
+/**
+ * Crée une tâche et notifie ses assignés — logique unique partagée par la
+ * route POST /api/admin/taches et par toute création automatique (ex. tâche
+ * de relance créée depuis le CRM) afin d'éviter un appel HTTP interne.
+ */
+export async function createTacheRecord(input: CreateTacheInput): Promise<CreateTacheResult> {
+  const titre = input.titre?.trim();
+  if (!titre) return { ok: false, status: 400, error: "titre requis" };
+  if (!input.portee || !PORTEE_VALUES.includes(input.portee)) {
+    return { ok: false, status: 400, error: "portee invalide" };
+  }
+  const finalPriorite: Priorite = input.priorite && PRIORITE_VALUES.includes(input.priorite) ? input.priorite : "normale";
+
+  const resolved = await resolveAssignes(input.portee, input.assignes);
+  if ("error" in resolved) {
+    return { ok: false, status: 400, error: resolved.error };
+  }
+
+  let dateEcheanceTs: Timestamp | null = null;
+  if (input.dateEcheance) {
+    const d = new Date(input.dateEcheance);
+    if (Number.isNaN(d.getTime())) {
+      return { ok: false, status: 400, error: "dateEcheance invalide" };
+    }
+    dateEcheanceTs = Timestamp.fromDate(d);
+  }
+
+  const finalClientId = input.clientId || null;
+  const finalDescription = (input.description ?? "").trim() || null;
+  const docRef = await adminDb.collection("taches").add({
+    titre,
+    description: finalDescription,
+    assignes: resolved.assignes,
+    portee: input.portee,
+    creePar: input.creePar,
+    statut: "a_faire",
+    priorite: finalPriorite,
+    dateEcheance: dateEcheanceTs,
+    heureEcheance: input.heureEcheance === true,
+    clientId: finalClientId,
+    lienType: input.lienType || null,
+    lienId: input.lienId || null,
+    createdAt: Timestamp.now(),
+    completedAt: null,
+    completePar: null,
+  });
+
+  // Notification + courriel — ne doit jamais faire échouer la création elle-même.
+  try {
+    await notifyStaffOfTache({
+      tacheId: docRef.id,
+      titre,
+      description: finalDescription,
+      priorite: finalPriorite,
+      dateEcheance: dateEcheanceTs ? dateEcheanceTs.toDate().toISOString() : null,
+      heureEcheance: input.heureEcheance === true,
+      clientId: finalClientId,
+      actorUid: input.creePar,
+      recipientUids: resolved.assignes,
+    });
+  } catch (err) {
+    console.error("[createTacheRecord] notification échouée", err);
+  }
+
+  return { ok: true, id: docRef.id };
+}
+
+/**
+ * Met à jour uniquement l'échéance d'une tâche existante — utilisé quand une
+ * date de relance est modifiée sur un dossier CRM, pour éviter de dupliquer
+ * la tâche de relance déjà créée.
+ */
+export async function updateTacheDateEcheance(tacheId: string, dateEcheanceIso: string | null): Promise<void> {
+  const dateEcheance = dateEcheanceIso ? Timestamp.fromDate(new Date(dateEcheanceIso)) : null;
+  await adminDb.collection("taches").doc(tacheId).update({ dateEcheance });
 }
 
 // ─── Notifications de tâches assignées ─────────────────────────────────────────

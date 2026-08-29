@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { Timestamp, type QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { requireStaff } from "@/lib/requireAdmin";
-import { resolveAssignes, serializeTache, notifyStaffOfTache } from "@/lib/taches";
-import { PORTEE_VALUES, PRIORITE_VALUES, type Portee, type Priorite } from "@/config/taches";
+import { serializeTache, createTacheRecord } from "@/lib/taches";
+import { type Portee, type Priorite } from "@/config/taches";
 
 /**
  * Sérialise une liste de docs taches en résolvant le nombre de commentaires
@@ -98,66 +98,24 @@ export async function POST(req: NextRequest) {
       clientId?: string | null; lienType?: string | null; lienId?: string | null;
     };
 
-    if (!titre || !titre.trim()) {
-      return NextResponse.json({ error: "titre requis" }, { status: 400 });
-    }
-    if (!portee || !PORTEE_VALUES.includes(portee)) {
-      return NextResponse.json({ error: "portee invalide" }, { status: 400 });
-    }
-    const finalPriorite: Priorite = priorite && PRIORITE_VALUES.includes(priorite) ? priorite : "normale";
-
-    const resolved = await resolveAssignes(portee, assignes);
-    if ("error" in resolved) {
-      return NextResponse.json({ error: resolved.error }, { status: 400 });
-    }
-
-    let dateEcheanceTs: Timestamp | null = null;
-    if (dateEcheance) {
-      const d = new Date(dateEcheance);
-      if (Number.isNaN(d.getTime())) {
-        return NextResponse.json({ error: "dateEcheance invalide" }, { status: 400 });
-      }
-      dateEcheanceTs = Timestamp.fromDate(d);
-    }
-
-    const finalClientId = clientId || null;
-    const docRef = await adminDb.collection("taches").add({
-      titre: titre.trim(),
-      description: (description ?? "").trim() || null,
-      assignes: resolved.assignes,
-      portee,
+    const result = await createTacheRecord({
+      titre: titre ?? "",
+      description,
+      portee: portee as Portee,
+      assignes,
+      priorite: priorite as Priorite,
+      dateEcheance,
+      heureEcheance,
+      clientId,
+      lienType,
+      lienId,
       creePar: auth.uid,
-      statut: "a_faire",
-      priorite: finalPriorite,
-      dateEcheance: dateEcheanceTs,
-      heureEcheance: heureEcheance === true,
-      clientId: finalClientId,
-      lienType: lienType || null,
-      lienId: lienId || null,
-      createdAt: Timestamp.now(),
-      completedAt: null,
-      completePar: null,
     });
-
-    // Notification + courriel à chaque assigné (sauf le créateur) — ne doit
-    // jamais faire échouer la création elle-même si ça échoue.
-    try {
-      await notifyStaffOfTache({
-        tacheId: docRef.id,
-        titre: titre.trim(),
-        description: (description ?? "").trim() || null,
-        priorite: finalPriorite,
-        dateEcheance: dateEcheanceTs ? dateEcheanceTs.toDate().toISOString() : null,
-        heureEcheance: heureEcheance === true,
-        clientId: finalClientId,
-        actorUid: auth.uid,
-        recipientUids: resolved.assignes,
-      });
-    } catch (err) {
-      console.error("[taches POST] notification échouée", err);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    return NextResponse.json({ ok: true, id: docRef.id });
+    return NextResponse.json({ ok: true, id: result.id });
   } catch (err) {
     console.error("[taches POST]", err);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
