@@ -12,13 +12,22 @@ import { useClients } from "@/hooks/useClients";
 import type { Portee, Priorite } from "@/config/taches";
 import type { NewTacheInput, StaffMember } from "@/hooks/useTaches";
 
+/** Lien pré-rempli et verrouillé — ex. ouvert depuis la fiche d'une organisation du CRM. */
+export interface LienVerrouille {
+  lienType: string;
+  lienId: string;
+  label: string;
+}
+
 /** Formulaire minimal — seul le titre est requis ; tout le reste est visible d'emblée. */
 export function NouvelleTacheDialog({
-  staff, onClose, onCreate,
+  staff, onClose, onCreate, lienVerrouille,
 }: {
   staff: StaffMember[];
   onClose: () => void;
   onCreate: (input: NewTacheInput) => Promise<void>;
+  /** Si fourni, les champs lienType/lienId (et le sélecteur Client, contradictoire avec un lien) sont masqués et forcés à ces valeurs. */
+  lienVerrouille?: LienVerrouille;
 }) {
   const { clients } = useClients();
 
@@ -64,9 +73,12 @@ export function NouvelleTacheDialog({
         priorite,
         dateEcheance: combineDateTimeToIso(dateEcheance, heureEcheance),
         heureEcheance: !!heureEcheance,
-        clientId: clientId || null,
-        lienType: lienType.trim() || null,
-        lienId: lienId.trim() || null,
+        // Un lien verrouillé (ex. organisation du CRM) et un client sont deux
+        // rattachements distincts — jamais les deux en même temps, sinon ça
+        // devient contradictoire. Le lien verrouillé gagne toujours.
+        clientId: lienVerrouille ? null : (clientId || null),
+        lienType: lienVerrouille ? lienVerrouille.lienType : (lienType.trim() || null),
+        lienId: lienVerrouille ? lienVerrouille.lienId : (lienId.trim() || null),
       });
       onClose();
     } catch (e) {
@@ -134,35 +146,46 @@ export function NouvelleTacheDialog({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Client (optionnel)</label>
-            <select
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="h-8 w-full rounded-lg border border-gray-200 bg-transparent px-2.5 text-sm text-gray-700 outline-none focus:border-[#0362E3]"
-            >
-              <option value="">Aucun client</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.nom}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Lien (optionnel)</label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Type (ex. lead, url…)"
-                value={lienType}
-                onChange={(e) => setLienType(e.target.value)}
-              />
-              <Input
-                placeholder="Identifiant ou URL"
-                value={lienId}
-                onChange={(e) => setLienId(e.target.value)}
-              />
+          {!lienVerrouille && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Client (optionnel)</label>
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="h-8 w-full rounded-lg border border-gray-200 bg-transparent px-2.5 text-sm text-gray-700 outline-none focus:border-[#0362E3]"
+              >
+                <option value="">Aucun client</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.nom}</option>
+                ))}
+              </select>
             </div>
-          </div>
+          )}
+
+          {lienVerrouille ? (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Lien</label>
+              <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-50 border border-gray-200 text-gray-600">
+                Lié à : {lienVerrouille.label}
+              </span>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Lien (optionnel)</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Type (ex. lead, url…)"
+                  value={lienType}
+                  onChange={(e) => setLienType(e.target.value)}
+                />
+                <Input
+                  placeholder="Identifiant ou URL"
+                  value={lienId}
+                  onChange={(e) => setLienId(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>

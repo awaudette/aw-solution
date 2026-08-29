@@ -25,6 +25,32 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Filtre optionnel par lien (ex. tâches liées à une organisation du CRM)
+    // — rétrocompatible, absent = comportement inchangé ci-dessous. Filtré
+    // par égalité seule (pas de orderBy combiné) pour n'exiger aucun index
+    // composite ; le tri se fait en JS comme pour la branche employé.
+    const lienType = req.nextUrl.searchParams.get("lienType");
+    const lienId = req.nextUrl.searchParams.get("lienId");
+    if (lienType && lienId) {
+      const snap = await adminDb.collection("taches")
+        .where("lienType", "==", lienType)
+        .where("lienId", "==", lienId)
+        .get();
+      let docs = snap.docs;
+      if (auth.role !== "admin") {
+        docs = docs.filter(d => {
+          const data = d.data();
+          return (data.assignes ?? []).includes(auth.uid) || data.creePar === auth.uid;
+        });
+      }
+      const taches = (await serializeWithCommentCounts(docs)).sort((a, b) => {
+        const aMs = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bMs = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bMs - aMs;
+      });
+      return NextResponse.json({ taches });
+    }
+
     if (auth.role === "admin") {
       const snap = await adminDb.collection("taches").orderBy("createdAt", "desc").get();
       const taches = await serializeWithCommentCounts(snap.docs);
