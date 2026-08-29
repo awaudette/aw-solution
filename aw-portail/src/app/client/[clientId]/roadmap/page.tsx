@@ -227,7 +227,7 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
         type: "creneau_accepte", destinataire: "admin",
         clientId, clientNom, auteurRole: "client",
         description: `${clientNom} — Rencontre de validation confirmée — ${label}`,
-        lien: `/admin/clients/${clientId}?tab=rencontres`,
+        lien: `/admin/messages?clientId=${clientId}&tab=rencontres`,
       });
     } finally { setConfirming(false); }
   }
@@ -263,7 +263,7 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
         type: "creneau_refuse", destinataire: "admin",
         clientId, clientNom, auteurRole: "client",
         description: `${clientNom} — Propose une date alternative : ${dateLabel}${customMessage ? ` — "${customMessage}"` : ""}`,
-        lien: `/admin/clients/${clientId}?tab=rencontres`,
+        lien: `/admin/messages?clientId=${clientId}&tab=rencontres`,
         actionRequise: true,
       });
 

@@ -33,7 +33,7 @@ export interface NotificationInput {
   auteurRole: "admin" | "client";
   /** Texte affiché dans la notification */
   description: string;
-  /** Chemin de redirection au clic "Voir" (ex: "/admin/clients/abc?tab=support") */
+  /** Chemin de redirection au clic "Voir" (ex: "/admin/messages?clientId=abc&tab=demandes") */
   lien: string;
   /** Vrai = le ✓ est désactivé tant que actionCompletee est false */
   actionRequise?: boolean;

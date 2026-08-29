@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   collection, onSnapshot, query, orderBy, where,
@@ -501,8 +502,8 @@ function RencontresTab({ clientId, client }: { clientId: string; client: ClientD
 
 // ─── Panneau droit — conversation active ──────────────────────────────────────
 
-function ConversationPanel({ clientId, client }: { clientId: string; client: ClientDoc }) {
-  const [activeTab, setActiveTab] = useState<"messages" | "demandes" | "rencontres">("messages");
+function ConversationPanel({ clientId, client, initialTab }: { clientId: string; client: ClientDoc; initialTab?: "messages" | "demandes" | "rencontres" }) {
+  const [activeTab, setActiveTab] = useState<"messages" | "demandes" | "rencontres">(initialTab ?? "messages");
 
   const tabs = [
     { id: "messages",   label: "Messages"         },
@@ -566,7 +567,9 @@ function ConversationPanel({ clientId, client }: { clientId: string; client: Cli
 
 // ─── Page principale ──────────────────────────────────────────────────────────
 
-export default function AdminMessagesPage() {
+function AdminMessagesContent() {
+  const searchParams = useSearchParams();
+
   const [clients,       setClients]       = useState<ClientDoc[]>([]);
   const [convMeta,      setConvMeta]      = useState<Record<string, ConvMeta>>({});
   const [demandeCounts, setDemandeCounts] = useState<Record<string, number>>({});
@@ -578,6 +581,22 @@ export default function AdminMessagesPage() {
   const msgUnsubs = useRef<Record<string, () => void>>({});
   const demUnsubs = useRef<Record<string, () => void>>({});
   const renUnsubs = useRef<Record<string, () => void>>({});
+
+  // Sélection initiale depuis l'URL (?clientId=&tab=) — une seule fois, pour
+  // ne pas reforcer selectedId si l'admin choisit ensuite une autre
+  // conversation manuellement. Si clientId ne correspond à aucun client
+  // chargé, on ne fait rien : le comportement par défaut (aucune conversation
+  // sélectionnée) s'applique tel quel.
+  const initFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (initFromUrlRef.current || !clients.length) return;
+    const cid = searchParams.get("clientId");
+    if (cid && clients.some(c => c.id === cid)) setSelectedId(cid);
+    initFromUrlRef.current = true;
+  }, [clients, searchParams]);
+
+  const tabParam = searchParams.get("tab");
+  const initialTab = tabParam === "messages" || tabParam === "demandes" || tabParam === "rencontres" ? tabParam : undefined;
 
   // Charger tous les clients (temps réel)
   useEffect(() => {
@@ -831,9 +850,17 @@ export default function AdminMessagesPage() {
             </p>
           </div>
         ) : (
-          <ConversationPanel clientId={selectedId!} client={selectedClient} />
+          <ConversationPanel clientId={selectedId!} client={selectedClient} initialTab={initialTab} />
         )}
       </div>
     </div>
+  );
+}
+
+export default function AdminMessagesPage() {
+  return (
+    <Suspense>
+      <AdminMessagesContent />
+    </Suspense>
   );
 }

@@ -391,9 +391,24 @@ function DemandeSupportBloc({ clientId, client }: { clientId: string; client: { 
         type: "demande_support", destinataire: "admin",
         clientId, clientNom: client.nom, auteurRole: "client",
         description: `${client.nom} — Demande de support (${categorie}) : ${description.trim().slice(0, 100)}`,
-        lien: `/admin/clients/${clientId}?tab=support`,
+        lien: `/admin/messages?clientId=${clientId}&tab=demandes`,
         actionRequise: true,
       });
+
+      // Courriel admin
+      fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: "support@awsolution.ca",
+          subject: `Nouvelle demande de support de ${client.nom}`,
+          html: `<p><strong>${client.nom}</strong> a soumis une nouvelle demande de support.</p>
+                 <p><strong>Catégorie :</strong> ${catLabel}</p>
+                 <p><strong>Description :</strong><br/>${description.trim()}</p>
+                 ${imageUrls.length > 0 ? `<p><strong>Images jointes :</strong> ${imageUrls.length}</p>` : ""}
+                 <p><a href="https://aw-portail.vercel.app/admin/messages?clientId=${clientId}&tab=demandes">Voir la demande →</a></p>`,
+        }),
+      }).catch((e) => console.error("Erreur envoi courriel — demande de support:", e));
 
       setCategorie(""); setRaisonAutre(""); setDescription(""); setFiles([]);
       setSuccess(true); setTimeout(() => setSuccess(false), 4000);
@@ -577,7 +592,7 @@ function RencontreMensuelleBloc({ clientId, client }: { clientId: string; client
         type: "demande_rencontre", destinataire: "admin",
         clientId, clientNom: client.nom, auteurRole: "client",
         description: `${client.nom} demande une rencontre mensuelle.`,
-        lien: `/admin/clients/${clientId}?tab=rencontres`,
+        lien: `/admin/messages?clientId=${clientId}&tab=rencontres`,
         actionRequise: true,
       });
       setStatutPhase("demandee");
@@ -608,7 +623,7 @@ function RencontreMensuelleBloc({ clientId, client }: { clientId: string; client
         type: "creneau_refuse", destinataire: "admin",
         clientId, clientNom: client.nom, auteurRole: "client",
         description: `${client.nom} refuse les créneaux proposés et demande le ${autreDate} à ${autreHeure}.`,
-        lien: `/admin/clients/${clientId}?tab=rencontres`,
+        lien: `/admin/messages?clientId=${clientId}&tab=rencontres`,
         actionRequise: true,
       });
       setShowAltForm(false); setAutreDate(""); setAutreHeure("");
