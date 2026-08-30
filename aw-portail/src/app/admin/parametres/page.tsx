@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Check, Save } from "lucide-react";
+import { BlocEmployes } from "@/components/admin/BlocEmployes";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -197,6 +199,9 @@ function StatutPlatformeSection() {
 // ─── Page principale ───────────────────────────────────────────────────────────
 
 export default function ParametresAdminPage() {
+  const { ready } = useRequireSection("parametres");
+  if (!ready) return null;
+
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -205,6 +210,8 @@ export default function ParametresAdminPage() {
       </div>
 
       <StatutPlatformeSection />
+
+      <BlocEmployes />
 
       {/* Espace pour futurs blocs */}
     </div>

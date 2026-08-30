@@ -1,12 +1,13 @@
 /**
  * Sert le contenu d'un document de la base de connaissances interne — aperçu
  * (inline) ou téléchargement (?telecharger=1). Le fichier n'est jamais public
- * dans Storage ; il transite uniquement par cette route, protégée par requireAdmin.
+ * dans Storage ; il transite uniquement par cette route, protégée par
+ * requireSection(req, "documentation").
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminStorage } from "@/lib/firebase-admin";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 
 const BUCKET_NAME = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "aw-portail.firebasestorage.app";
 
@@ -14,8 +15,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ docId: string }> }
 ) {
-  const uid = await requireAdmin(req);
-  if (!uid) return new NextResponse("Non autorisé", { status: 401 });
+  const auth = await requireSection(req, "documentation");
+  if (!auth.ok) return new NextResponse(auth.error, { status: auth.status });
 
   const { docId } = await params;
   const snap = await adminDb.collection("documentation_interne").doc(docId).get();

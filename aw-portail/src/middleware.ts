@@ -45,7 +45,7 @@ export async function middleware(request: NextRequest) {
     // Protection des routes client : un client ne peut accéder qu'à son propre clientId
     if (pathname.startsWith("/client/")) {
       const routeClientId = pathname.split("/")[2];
-      if (role !== "admin" && routeClientId !== clientId) {
+      if (role !== "admin" && role !== "employe" && routeClientId !== clientId) {
         return NextResponse.redirect(
           new URL(`/client/${clientId}/accueil`, request.url)
         );
@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Protection de la route admin
-    if (pathname.startsWith("/admin") && role !== "admin") {
+    if (pathname.startsWith("/admin") && role !== "admin" && role !== "employe") {
       return NextResponse.redirect(
         new URL(`/client/${clientId}/accueil`, request.url)
       );

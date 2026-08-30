@@ -14,6 +14,14 @@ export async function POST(request: NextRequest) {
     }
 
     const userData = userDoc.data()!;
+
+    // Accès révoqué (voir /api/admin/staff/invite DELETE) : le document
+    // users/{uid} est conservé, jamais supprimé — c'est ce champ qui bloque
+    // réellement la connexion plutôt qu'un compte Firebase Auth orphelin.
+    if (userData.statut === "revoque") {
+      return NextResponse.json({ error: "Accès révoqué" }, { status: 403 });
+    }
+
     const role     = userData.role as string;
     const clientId = (userData.clientId ?? null) as string | null;
 
@@ -22,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     // Cookie isolé par rôle/client — permet d'être connecté en admin ET en client
     // simultanément dans des onglets différents sans interférence
-    const cookieName = role === "admin"
+    const cookieName = (role === "admin" || role === "employe")
       ? "session_admin"
       : `session_client_${clientId}`;
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { adminDb, adminStorage } from "@/lib/firebase-admin";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 
 const BUCKET_NAME = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "aw-portail.firebasestorage.app";
 const SANS_CATEGORIE_LABEL = "Sans catégorie";
@@ -11,8 +11,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ docId: string }> }
 ) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation", "ecriture");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { docId } = await params;
   const body = (await req.json().catch(() => ({}))) as {
@@ -41,8 +41,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ docId: string }> }
 ) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation", "ecriture");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { docId } = await params;
   const ref  = adminDb.collection("documentation_interne").doc(docId);

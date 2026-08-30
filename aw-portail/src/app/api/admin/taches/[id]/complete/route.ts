@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
-import { requireStaff } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 import { loadTacheForAccess } from "@/lib/taches";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "aFaire", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

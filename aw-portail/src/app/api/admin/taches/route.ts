@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { type QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { requireStaff } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 import { serializeTache, createTacheRecord } from "@/lib/taches";
 import { type Portee, type Priorite } from "@/config/taches";
 
@@ -19,7 +19,7 @@ async function serializeWithCommentCounts(docs: QueryDocumentSnapshot[]) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "aFaire");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "aFaire", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

@@ -11,6 +11,7 @@ import { NouvelleTacheDialog } from "@/components/admin/taches/NouvelleTacheDial
 import { TacheDetailDialog } from "@/components/admin/taches/TacheDetailDialog";
 import { CompleterTacheDialog } from "@/components/admin/taches/CompleterTacheDialog";
 import type { TacheDTO } from "@/config/taches";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 function sortTaches(list: TacheDTO[]): TacheDTO[] {
   return [...list].sort((a, b) => {
@@ -57,6 +58,7 @@ export default function AFairePage() {
 }
 
 function AFaireContent() {
+  const { ready } = useRequireSection("aFaire");
   const {
     taches, staff, me, myUid, loading, error,
     createTache, updateTache, completeTache, reopenTache, deleteTache,
@@ -105,6 +107,8 @@ function AFaireContent() {
   }, [compteBase, filtre, myUid]);
 
   const openTache = taches.find(t => t.id === openId) ?? null;
+
+  if (!ready) return null;
 
   return (
     <div>

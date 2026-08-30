@@ -46,6 +46,7 @@ import { AdminBrandingViewer } from "@/components/admin/AdminBrandingViewer";
 import { AdminRoadmapViewer } from "@/components/admin/AdminRoadmapViewer";
 import { AdminCalendrierClient } from "@/components/calendrier/AdminCalendrierClient";
 import { AdminDocumentationTab } from "@/components/admin/AdminDocumentationTab";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 import { AdminDonneesViewer } from "@/components/admin/AdminDonneesViewer";
 
 interface ContratInfo {
@@ -130,6 +131,7 @@ export default function AdminClientDetailPage() {
 }
 
 function AdminClientDetailContent() {
+  const { ready } = useRequireSection("clients");
   const { id }    = useParams<{ id: string }>();
   const router    = useRouter();
   const searchParams = useSearchParams();
@@ -385,6 +387,8 @@ function AdminClientDetailContent() {
       setSendingMsg(false);
     }
   }
+
+  if (!ready) return null;
 
   if (loading) {
     return (

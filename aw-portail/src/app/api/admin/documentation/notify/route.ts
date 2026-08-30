@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { resend } from "@/lib/resend";
 import { FieldValue } from "firebase-admin/firestore";
-import { requireAdminDetailed } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminDetailed(req);
+  const auth = await requireSection(req, "documentation", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

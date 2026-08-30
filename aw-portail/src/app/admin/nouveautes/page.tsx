@@ -11,6 +11,7 @@ import {
   Plus, X, Send, Trash2, Sparkles, RefreshCw,
   Users, Globe, Paperclip, FileText, Image,
 } from "lucide-react";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 interface Nouveaute {
   id: string;
@@ -56,6 +57,7 @@ function TypeBadge({ type }: { type: "nouveaute" | "mise_a_jour" }) {
 }
 
 export default function AdminNouveautesPage() {
+  const { ready } = useRequireSection("nouveautes");
   const [items,       setItems]       = useState<Nouveaute[]>([]);
   const [clients,     setClients]     = useState<ClientOption[]>([]);
   const [showForm,    setShowForm]    = useState(false);
@@ -185,6 +187,8 @@ export default function AdminNouveautesPage() {
     uploadProgress !== "uploading";
 
   const isImage = fichier?.type.startsWith("image/");
+
+  if (!ready) return null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6F9", padding: "32px 48px 80px" }}>

@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useClients } from "@/hooks/useClients";
 import type { Client } from "@/types/admin";
 import { FileText, Loader2, ChevronRight, MessageSquare } from "lucide-react";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 function ForfaitBadge({ forfait }: { forfait: Client["forfait"] }) {
   if (forfait === "Prestige") {
@@ -37,6 +38,7 @@ function StatutBadge({ statut }: { statut: Client["statut"] }) {
 }
 
 export default function ClientsListPage() {
+  const { ready } = useRequireSection("clients");
   const { clients, loading } = useClients();
   const [clientsWithUnread, setClientsWithUnread] = useState<Set<string>>(new Set());
 
@@ -72,6 +74,8 @@ export default function ClientsListPage() {
 
     return () => unsubs.forEach((u) => u());
   }, [clients]);
+
+  if (!ready) return null;
 
   if (loading) {
     return (

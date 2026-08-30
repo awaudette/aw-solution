@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { ALWAYS_ACCESSIBLE_SECTIONS, type AdminSectionKey, type AdminPermission } from "@/config/adminSections";
 
 export type AdminAuthResult =
   | { ok: true; uid: string }
@@ -66,6 +67,62 @@ export async function requireStaff(req: NextRequest): Promise<StaffAuthResult> {
       return { ok: false, status: 403, error: "Accès réservé au personnel AW Solution" };
     }
     return { ok: true, uid: decoded.uid, role };
+  } catch {
+    return { ok: false, status: 401, error: "Session invalide" };
+  }
+}
+
+/**
+ * Vérifie qu'une requête a le droit d'agir sur `section` (une des 9 clés de
+ * config/adminSections.ts) :
+ * - role === "admin" : toujours autorisé, sans condition, comme aujourd'hui.
+ * - role === "employe" : autorisé seulement si users/{uid}.permissions[section]
+ *   atteint au moins `minLevel` ("lecture" par défaut ; passer "ecriture"
+ *   pour les gestionnaires de mutation — POST/PATCH/DELETE).
+ *
+ * Toute la logique de vérification par section vit ici, à un seul endroit —
+ * chaque route ne fait qu'indiquer QUELLE section elle protège.
+ *
+ * Ne remplace pas requireStaff : ce dernier reste approprié pour les
+ * endpoints transversaux qui ne correspondent à aucune section unique
+ * (ex. /api/admin/staff, l'annuaire du personnel).
+ */
+export async function requireSection(
+  req: NextRequest,
+  section: AdminSectionKey,
+  minLevel: AdminPermission = "lecture",
+): Promise<StaffAuthResult> {
+  const session = req.cookies.get("session_admin")?.value;
+  if (!session) return { ok: false, status: 401, error: "Non authentifié" };
+  try {
+    const decoded = await adminAuth.verifySessionCookie(session, true);
+    const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
+    if (!userSnap.exists) {
+      return { ok: false, status: 403, error: "Accès réservé au personnel AW Solution" };
+    }
+    const data = userSnap.data()!;
+    const role = data.role as StaffRole | undefined;
+
+    if (role === "admin") {
+      return { ok: true, uid: decoded.uid, role: "admin" };
+    }
+
+    if (role !== "employe") {
+      return { ok: false, status: 403, error: "Accès réservé au personnel AW Solution" };
+    }
+
+    if (ALWAYS_ACCESSIBLE_SECTIONS.has(section)) {
+      return { ok: true, uid: decoded.uid, role: "employe" };
+    }
+
+    const permissions = (data.permissions ?? {}) as Record<AdminSectionKey, AdminPermission>;
+    const level = permissions[section] ?? null;
+    const hasAccess = minLevel === "ecriture" ? level === "ecriture" : level !== null;
+
+    if (!hasAccess) {
+      return { ok: false, status: 403, error: `Accès à la section "${section}" non autorisé` };
+    }
+    return { ok: true, uid: decoded.uid, role: "employe" };
   } catch {
     return { ok: false, status: 401, error: "Session invalide" };
   }

@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 
 interface Categorie { id: string; nom: string }
 
@@ -18,16 +18,16 @@ async function readCategories(): Promise<Categorie[]> {
 }
 
 export async function GET(req: NextRequest) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const categories = await readCategories();
   return NextResponse.json({ categories });
 }
 
 export async function POST(req: NextRequest) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation", "ecriture");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { nom } = (await req.json().catch(() => ({}))) as { nom?: string };
   if (!nom?.trim()) return NextResponse.json({ error: "Nom requis" }, { status: 400 });
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation", "ecriture");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { id, nom } = (await req.json().catch(() => ({}))) as { id?: string; nom?: string };
   if (!id || !nom?.trim()) return NextResponse.json({ error: "id et nom requis" }, { status: 400 });
@@ -65,8 +65,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation", "ecriture");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { id } = (await req.json().catch(() => ({}))) as { id?: string };
   if (!id) return NextResponse.json({ error: "id requis" }, { status: 400 });

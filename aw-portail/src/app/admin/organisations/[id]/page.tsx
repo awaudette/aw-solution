@@ -13,6 +13,7 @@ import { PerteBlock } from "@/components/admin/organisations/PerteBlock";
 import { TimelineOrganisation } from "@/components/admin/organisations/TimelineOrganisation";
 import { NouvelleTacheDialog } from "@/components/admin/taches/NouvelleTacheDialog";
 import { ETAPE_LABELS, type Etape, type OrganisationDTO, type ContactDTO, type InteractionDTO } from "@/config/organisations";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 const ETAPE_COLORS: Record<Etape, { bg: string; text: string; border: string }> = {
   nouveau:             { bg: "#F3F4F6", text: "#374151", border: "#E5E7EB" },
@@ -31,6 +32,7 @@ function staffLabel(uid: string | undefined, staff: { uid: string; prenom: strin
 }
 
 export default function OrganisationPage() {
+  const { ready } = useRequireSection("pipeline");
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const {
@@ -82,6 +84,8 @@ export default function OrganisationPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  if (!ready) return null;
 
   if (org === undefined) {
     return <div className="flex items-center justify-center h-64"><Loader2 size={22} className="animate-spin text-gray-300" /></div>;

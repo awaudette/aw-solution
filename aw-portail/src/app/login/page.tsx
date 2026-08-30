@@ -35,7 +35,7 @@ export default function LoginPage() {
 
       const { role, clientId } = await res.json();
 
-      if (role === "admin") {
+      if (role === "admin" || role === "employe") {
         router.push("/admin");
       } else {
         router.push(`/client/${clientId}/accueil`);

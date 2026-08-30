@@ -13,6 +13,7 @@ import {
   Search, MessageSquare, Send, ExternalLink, ChevronDown,
   CheckCircle, Bell, CalendarDays,
 } from "lucide-react";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -568,6 +569,7 @@ function ConversationPanel({ clientId, client, initialTab }: { clientId: string;
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 function AdminMessagesContent() {
+  const { ready } = useRequireSection("messages");
   const searchParams = useSearchParams();
 
   const [clients,       setClients]       = useState<ClientDoc[]>([]);
@@ -698,6 +700,8 @@ function AdminMessagesContent() {
   const totalRencontres = Object.values(rencontreCounts).reduce((s, n) => s + n, 0);
 
   const selectedClient = clients.find(c => c.id === selectedId) ?? null;
+
+  if (!ready) return null;
 
   return (
     <div style={{

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
-import { requireStaff } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 import { loadOrganisationForAccess, serializeInteraction, addInteractionAndTouch } from "@/lib/organisations";
 import { INTERACTION_TYPE_VALUES, REACTION_VALUES, type InteractionType, type Reaction } from "@/config/organisations";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

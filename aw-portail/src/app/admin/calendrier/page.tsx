@@ -8,6 +8,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { RendezVous, RdvStatut } from "@/types/calendrier";
 import { CalendarDays, ChevronRight } from "lucide-react";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 const STATUT_CFG: Record<RdvStatut, { label: string; color: string; bg: string; border: string }> = {
   en_attente: { label: "En attente",  color: "#92400E", bg: "#FFFBEB", border: "#FDE68A" },
@@ -26,6 +27,7 @@ interface RdvAvecClient extends RendezVous {
 }
 
 export default function AdminCalendrierPage() {
+  const { ready } = useRequireSection("calendrier");
   const router = useRouter();
   const [rdvs,    setRdvs]    = useState<RdvAvecClient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +75,8 @@ export default function AdminCalendrierPage() {
 
   const countEnAttente = rdvs.filter(r => r.statut === "en_attente").length;
   const countAVenir    = rdvs.filter(r => r.date >= today).length;
+
+  if (!ready) return null;
 
   return (
     <div className="space-y-6">

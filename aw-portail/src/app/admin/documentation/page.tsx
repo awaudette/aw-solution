@@ -2,10 +2,12 @@
 
 /**
  * Documentation interne — base de connaissances AW Solution.
- * Réservée aux comptes admin : les fichiers ne sont jamais publics dans
- * Storage, ils transitent uniquement par /api/admin/documentation-interne/*,
- * protégées par requireAdmin (voir src/lib/requireAdmin.ts). Aucun compte
- * client n'a de route ni d'accès à cette section.
+ * Réservée au personnel : les fichiers ne sont jamais publics dans Storage,
+ * ils transitent uniquement par /api/admin/documentation-interne/*,
+ * protégées par requireSection(req, "documentation") — admin toujours, un
+ * employé seulement avec la permission "documentation" (voir
+ * src/lib/requireAdmin.ts). Aucun compte client n'a de route ni d'accès à
+ * cette section.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +16,7 @@ import {
   FileText, FileSpreadsheet, FileCode, Image, Video, File as FileIcon,
   BookOpen, Loader2,
 } from "lucide-react";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -315,6 +318,7 @@ function DocRow({
 // ─── Page principale ────────────────────────────────────────────────────────
 
 export default function AdminDocumentationInternePage() {
+  const { ready } = useRequireSection("documentation");
   const [documents, setDocuments]   = useState<DocumentInterne[]>([]);
   const [categories, setCategories] = useState<Categorie[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -441,6 +445,8 @@ export default function AdminDocumentationInternePage() {
     color: active ? "#fff" : "#6B7280",
     cursor: "pointer", whiteSpace: "nowrap",
   });
+
+  if (!ready) return null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6F9", padding: "32px 48px 80px" }}>

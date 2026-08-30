@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { Timestamp, type QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { requireStaff } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 import { serializeOrganisation, isValidStaffUid, computeAutoDates } from "@/lib/organisations";
 import { ETAPE_VALUES, RECUPERABLE_VALUES, DATE_FIELDS, type Etape, type Recuperable } from "@/config/organisations";
 
@@ -18,7 +18,7 @@ async function serializeWithInteractionCounts(docs: QueryDocumentSnapshot[]) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

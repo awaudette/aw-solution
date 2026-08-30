@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
-import { requireStaff } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 import {
   loadOrganisationForAccess, serializeOrganisation, isValidStaffUid,
   computeAutoDates, logChangementEtape, logChangementProprietaire,
@@ -16,7 +16,7 @@ const CHAMPS_TEXTE = [
 ] as const;
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -227,7 +227,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

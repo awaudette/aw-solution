@@ -2,13 +2,14 @@
  * Base de connaissances interne AW Solution — liste + upload.
  * Collection Firestore : documentation_interne. Fichiers : Firebase Storage
  * sous documentation-interne/, jamais rendus publics (adminStorage uniquement).
- * Accès strictement réservé aux comptes admin — voir requireAdmin().
+ * Accès : admin toujours, employé seulement avec la permission "documentation"
+ * — voir requireSection() dans src/lib/requireAdmin.ts.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { Timestamp, DocumentData } from "firebase-admin/firestore";
 import { adminDb, adminStorage } from "@/lib/firebase-admin";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 
 const BUCKET_NAME = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "aw-portail.firebasestorage.app";
 const SANS_CATEGORIE_LABEL = "Sans catégorie";
@@ -29,8 +30,8 @@ function serialize(id: string, data: DocumentData) {
 }
 
 export async function GET(req: NextRequest) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const snap = await adminDb.collection("documentation_interne").orderBy("createdAt", "desc").get();
   const documents = snap.docs.map(d => serialize(d.id, d.data()));
@@ -39,8 +40,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const uid = await requireAdmin(req);
-  if (!uid) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const auth = await requireSection(req, "documentation", "ecriture");
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const uid = auth.uid;
 
   const form = await req.formData();
   const file           = form.get("file") as File | null;

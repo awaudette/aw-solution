@@ -3,27 +3,23 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Kanban, Users, CalendarDays, Settings, LogOut, Sparkles, Inbox, BookOpen, ListTodo } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-
-const NAV_ITEMS = [
-  { label: "Dashboard",  icon: LayoutDashboard, href: "/admin" },
-  { label: "Pipeline",   icon: Kanban,          href: "/admin/pipeline" },
-  { label: "Clients",    icon: Users,           href: "/admin/clients" },
-  { label: "Messages",   icon: Inbox,           href: "/admin/messages" },
-  { label: "Calendrier", icon: CalendarDays,    href: "/admin/calendrier" },
-  { label: "Nouveautés", icon: Sparkles,        href: "/admin/nouveautes" },
-  { label: "Documentation", icon: BookOpen,     href: "/admin/documentation" },
-  { label: "À faire",    icon: ListTodo,        href: "/admin/a-faire" },
-  { label: "Paramètres", icon: Settings,        href: "/admin/parametres" },
-];
+import { ADMIN_PORTAL_SECTIONS } from "@/config/adminSections";
+import { useAdminAccess } from "@/components/admin/AdminAccessProvider";
 
 export default function AdminSidebar() {
+  const { hasAccess } = useAdminAccess();
   const [expanded,     setExpanded]     = useState(false);
   const [unreadCount,  setUnreadCount]  = useState(0);
   const pathname = usePathname();
   const router   = useRouter();
+
+  // Un admin voit tout, sans changement. Un employé ne voit que les
+  // sections où il a au moins un accès lecture — Dashboard reste toujours
+  // visible (ALWAYS_ACCESSIBLE_SECTIONS, appliqué dans hasAccess).
+  const visibleSections = ADMIN_PORTAL_SECTIONS.filter((s) => hasAccess(s.key));
 
   // Badge temps réel — messages non lus, via abonnements per-client
   useEffect(() => {
@@ -104,7 +100,7 @@ export default function AdminSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-hidden">
-        {NAV_ITEMS.map(({ label, icon: Icon, href }) => {
+        {visibleSections.map(({ key, label, icon: Icon, href }) => {
           const active  = pathname === href || (href !== "/admin" && pathname.startsWith(href));
           const isMsg   = href === "/admin/messages";
           const showBadge = isMsg && unreadCount > 0;

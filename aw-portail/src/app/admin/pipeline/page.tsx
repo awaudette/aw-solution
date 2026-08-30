@@ -7,6 +7,7 @@ import { PipelineView } from "@/components/admin/organisations/PipelineView";
 import { TousLesDossiersView } from "@/components/admin/organisations/TousLesDossiersView";
 import { PerdusView } from "@/components/admin/organisations/PerdusView";
 import { DashboardView } from "@/components/admin/organisations/DashboardView";
+import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 type Vue = "pipeline" | "tous" | "perdus" | "dashboard";
 
@@ -18,12 +19,15 @@ const ONGLETS: { id: Vue; label: string; icon: typeof Kanban }[] = [
 ];
 
 export default function PipelinePage() {
+  const { ready } = useRequireSection("pipeline");
   const {
     organisations, staff, me, myUid, loading,
     updateOrganisation, createOrganisation, createContact,
   } = useOrganisations();
 
   const [vue, setVue] = useState<Vue>("pipeline");
+
+  if (!ready) return null;
 
   return (
     <div className="space-y-5">

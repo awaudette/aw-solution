@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStaff } from "@/lib/requireAdmin";
+import { requireSection } from "@/lib/requireAdmin";
 import { loadOrganisationForAccess } from "@/lib/organisations";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; contactId: string }> }
 ) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -55,7 +55,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; contactId: string }> }
 ) {
-  const auth = await requireStaff(req);
+  const auth = await requireSection(req, "pipeline", "ecriture");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
