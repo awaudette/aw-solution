@@ -184,6 +184,25 @@ export interface PeriodeAVie {
    *  multipliait un décompte par un ratio de croissance et ne représentait rien de réel.
    *  Phase 3 — portailSyncJob. */
   variationMembres?: number;
+  /** Alertes comportementales calculées par la CF cliente (ex: Poké Station).
+   *  Champ optionnel — absent chez les clients dont la CF ne l'envoie pas
+   *  encore. Sur l'entrée du document global uniquement : franchiseId/
+   *  franchiseNom identifient la franchise concernée (absents sur un document
+   *  par franchise, déjà scopé). */
+  alertesActives?: AlerteActive[];
+}
+
+/** Une alerte comportementale telle qu'envoyée par portailSyncJob dans
+ *  aVie.alertesActives — distincte de AlerteDoc (sous-collection
+ *  clients/{clientId}/alertes, non alimentée aujourd'hui). */
+export interface AlerteActive {
+  alertType:           string;
+  title:               string;
+  description:         string;
+  eligibleUsersCount:  number;
+  /** Présents uniquement sur les entrées du document global. */
+  franchiseId?:        string;
+  franchiseNom?:       string;
 }
 
 // ─── Segmentation RFM (Prestige) ──────────────────────────────────────────────
@@ -456,6 +475,9 @@ export interface AlerteDoc {
   titre:       string;
   description: string;         // chiffres concrets + valeur $
   valeurEnJeu?: number;        // CAD
+  /** Nombre de clients concernés par l'alerte — distinct de valeurEnJeu (CAD),
+   *  jamais affiché comme un montant. Vient de AlerteActive.eligibleUsersCount. */
+  eligibleUsersCount?: number;
   actionLabel?: string;
   lienAction?:  string;        // route relative (/client/{id}/donnees?tab=...)
   franchiseId?: string;        // null/absent = toutes franchises

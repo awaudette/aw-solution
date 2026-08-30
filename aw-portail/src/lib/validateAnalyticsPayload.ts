@@ -128,6 +128,11 @@ const periodeHier: Spec = { object: {
   reclamations: "number", bonusJoues: "number",
 } };
 
+const alerteActive: Spec = { object: {
+  alertType: "string", title: "string", description: "string", eligibleUsersCount: "number",
+  franchiseId: { optional: "string" }, franchiseNom: { optional: "string" },
+} };
+
 const periodeAVie: Spec = { object: {
   membresTotal: "number", revenusTotal: "number", visites: "number", panierMoyen: "number",
   moyenneRevenusParJour: "number", revenuParMembre: "number",
@@ -140,6 +145,7 @@ const periodeAVie: Spec = { object: {
   recompensesActives: { optional: "number" },
   promosActives:      { optional: "number" },
   variationMembres:   { optional: "number" },
+  alertesActives:     { optional: { array: alerteActive } },
 } };
 
 const segment: Spec = { object: {

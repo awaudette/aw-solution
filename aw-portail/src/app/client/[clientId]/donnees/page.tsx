@@ -4,7 +4,8 @@ import { Suspense, useState, useMemo } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useClientData } from "@/hooks/useClientData";
 import { useAnalyticsData } from "@/hooks/useAnalyticsData";
-import type { AnalyticsFranchise } from "@/types/analytics";
+import type { AnalyticsFranchise, AlerteDoc } from "@/types/analytics";
+import { severiteForAlertType } from "@/lib/alertTypes";
 import { TABS, type TabId } from "@/lib/donneesTabs";
 import OngletResume              from "@/components/donnees/OngletResume";
 import OngletAlertes             from "@/components/donnees/OngletAlertes";
@@ -63,6 +64,23 @@ function DonneesInner() {
     [franchiseId, franchises],
   );
   const franchiseName = franchiseData?.franchiseNom ?? "Toutes les franchises";
+
+  // Alertes comportementales — dérivées de global.aVie.alertesActives
+  // (portailSyncJob), pas de la sous-collection clients/{clientId}/alertes
+  // (aujourd'hui non alimentée, remplacement net plutôt que fusion).
+  const alertesActives: AlerteDoc[] = useMemo(() => {
+    if (!global?.aVie.alertesActives) return [];
+    return global.aVie.alertesActives.map((a) => ({
+      type:               a.alertType,
+      severite:           severiteForAlertType(a.alertType),
+      titre:              a.title,
+      description:        a.description,
+      eligibleUsersCount: a.eligibleUsersCount,
+      franchiseId:        a.franchiseId,
+      lue:                false,
+      createdAt:          global.periode.derniereSync,
+    }));
+  }, [global]);
 
   const visibleTabs = TABS.filter((t) => !t.prestige || isPrestige);
 
@@ -162,7 +180,7 @@ function DonneesInner() {
         />
       )}
       {activeTab === "alertes" && isPrestige && (
-        <OngletAlertes alertes={alertes} franchiseName={franchiseName} />
+        <OngletAlertes alertes={alertesActives} franchiseName={franchiseName} />
       )}
       {activeTab === "segmentation" && isPrestige && (
         <OngletSegmentation global={global} franchiseName={franchiseName} />

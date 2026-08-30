@@ -201,6 +201,14 @@ export default function OngletAlertes({ alertes }: Props) {
                           {fmtArgent(a.valeurEnJeu)} en jeu
                         </span>
                       )}
+                      {a.eligibleUsersCount != null && a.eligibleUsersCount > 0 && (
+                        <span style={{
+                          fontSize: 13, fontWeight: 500,
+                          color: estLue ? "#9CA3AF" : "#6B7280",
+                        }}>
+                          {a.eligibleUsersCount} client{a.eligibleUsersCount > 1 ? "s" : ""} concerné{a.eligibleUsersCount > 1 ? "s" : ""}
+                        </span>
+                      )}
                       {a.actionLabel && !estLue && (
                         <button style={{
                           padding: "5px 14px", borderRadius: 8,
