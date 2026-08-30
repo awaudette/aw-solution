@@ -16,6 +16,7 @@ import { CardMessages }       from "./CardMessages";
 import { CardNotifications }  from "./CardNotifications";
 import { CardForfait }        from "./CardForfait";
 import type { ClientData, OnboardingEtape, ActiviteItem, MessageItem } from "@/hooks/useClientData";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 // ─── Types locaux ─────────────────────────────────────────────────────────────
 
@@ -90,11 +91,18 @@ function Hero({ client, couleur }: { client: ClientData; couleur: string }) {
   const semaines = calcSemaines(client.dateEstimeLancement);
 
   return (
-    <div style={{
-      background: gradient, borderRadius: 16, padding: "24px 32px", marginBottom: 20,
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      gap: 24, position: "relative",
-    }}>
+    <div
+      data-tour-id="accueil-hero"
+      style={{
+        background: gradient, borderRadius: 16, padding: "24px 32px", marginBottom: 20,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 24, position: "relative",
+      }}
+    >
+      <div style={{ position: "absolute", top: 16, right: 16, zIndex: 2 }}>
+        <TourSectionButton section="accueil" />
+      </div>
+
       <div style={{ flex: 1 }}>
         {client.logo_url && (
           <img src={client.logo_url} alt={client.restaurant}

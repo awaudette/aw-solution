@@ -7,6 +7,7 @@ import { CardNotifications } from "./CardNotifications";
 import { CardForfait }        from "./CardForfait";
 import { LigneEtapes }        from "./LigneEtapes";
 import type { ClientData, OnboardingEtape, ActiviteItem, MessageItem } from "@/hooks/useClientData";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 // ─── Utilitaires ─────────────────────────────────────────────────────────────
 
@@ -93,17 +94,24 @@ function Hero({
   const gradient   = `linear-gradient(135deg, ${couleur}, ${couleurFin})`;
 
   return (
-    <div style={{
-      background: gradient,
-      borderRadius: 16,
-      padding: "24px 32px",
-      marginBottom: 20,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 24,
-      position: "relative",
-    }}>
+    <div
+      data-tour-id="accueil-hero"
+      style={{
+        background: gradient,
+        borderRadius: 16,
+        padding: "24px 32px",
+        marginBottom: 20,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 24,
+        position: "relative",
+      }}
+    >
+      <div style={{ position: "absolute", top: 16, right: 16, zIndex: 2 }}>
+        <TourSectionButton section="accueil" />
+      </div>
+
       {/* Gauche */}
       <div style={{ flex: 1 }}>
         {client.logo_url && (
@@ -359,10 +367,12 @@ export function AccueilOnboarding({ clientId, client, etapes, activite, messages
         <CardMessagePersonnalise texte={client.messagePersonnalise} />
 
         {/* Bannière action requise */}
-        <BanniereAction etapes={etapes} couleur={couleur} clientId={clientId} />
+        <div data-tour-id="accueil-banniere">
+          <BanniereAction etapes={etapes} couleur={couleur} clientId={clientId} />
+        </div>
 
         {/* Ligne horizontale — lit roadmap/main via useClientData (etapes) */}
-        <div style={{ marginBottom: 24 }}>
+        <div data-tour-id="accueil-etapes" style={{ marginBottom: 24 }}>
           <LigneEtapes clientId={clientId} etapes={etapes} couleur={couleur} />
         </div>
 
@@ -370,7 +380,7 @@ export function AccueilOnboarding({ clientId, client, etapes, activite, messages
         <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 20 }}>
 
           {/* Colonne gauche */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div data-tour-id="accueil-messages" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <CardMessages      clientId={clientId} messages={messages} />
             <CardNotifications clientId={clientId} activite={activite} />
           </div>
@@ -379,7 +389,9 @@ export function AccueilOnboarding({ clientId, client, etapes, activite, messages
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <CardChecklistClient etapes={etapes} clientId={clientId} />
             <CardCeQuiSenVient  etapes={etapes} />
-            <CardForfait client={client} />
+            <div data-tour-id="accueil-forfait">
+              <CardForfait client={client} />
+            </div>
           </div>
         </div>
       </div>

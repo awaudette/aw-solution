@@ -7,6 +7,7 @@ import {
   FileText, Video, ExternalLink, ChevronDown, ChevronUp,
   Clock, Layers, Sparkles,
 } from "lucide-react";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -338,20 +339,25 @@ export default function DocumentationPage({ params }: { params: Promise<{ client
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "32px 48px 80px" }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>Documentation</h1>
-          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>Guides, ressources et références pour votre application.</p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>Documentation</h1>
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>Guides, ressources et références pour votre application.</p>
+          </div>
+          <TourSectionButton section="documentation" />
         </div>
 
         {/* Catégorie 1 — Démarrage */}
-        <CatCard label="Démarrage" icon={<Sparkles size={16} color="#0362E3" />} iconBg="#EFF6FF" count={docsForCat("demarrage").length}>
-          {STATIC_STRUCTURE[0].soussections.map(ss => (
-            <SubsectionBlock key={ss.id} label={ss.label} emptyMsg={ss.emptyMsg} docs={docsFor("demarrage", ss.id)} />
-          ))}
-          {customCats.find(c => c.id === "demarrage")?.soussections.map(ss => (
-            <SubsectionBlock key={ss.id} label={ss.nom} emptyMsg="Aucun document disponible pour l'instant." docs={docsFor("demarrage", ss.id)} />
-          ))}
-        </CatCard>
+        <div data-tour-id="documentation-categories">
+          <CatCard label="Démarrage" icon={<Sparkles size={16} color="#0362E3" />} iconBg="#EFF6FF" count={docsForCat("demarrage").length}>
+            {STATIC_STRUCTURE[0].soussections.map(ss => (
+              <SubsectionBlock key={ss.id} label={ss.label} emptyMsg={ss.emptyMsg} docs={docsFor("demarrage", ss.id)} />
+            ))}
+            {customCats.find(c => c.id === "demarrage")?.soussections.map(ss => (
+              <SubsectionBlock key={ss.id} label={ss.nom} emptyMsg="Aucun document disponible pour l'instant." docs={docsFor("demarrage", ss.id)} />
+            ))}
+          </CatCard>
+        </div>
 
         {/* Catégorie 2 — Guides d'utilisation */}
         <CatCard label="Guides d'utilisation" icon={<FileText size={16} color="#059669" />} iconBg="#F0FDF4" count={docsForCat("guides").length}>
@@ -388,9 +394,11 @@ export default function DocumentationPage({ params }: { params: Promise<{ client
         </CatCard>
 
         {/* Catégorie 5 — FAQ */}
-        <CatCard label="FAQ" icon={<span style={{ fontSize: 15, fontWeight: 700, color: "#6B7280" }}>?</span>} iconBg="#F9FAFB" count={faq.length}>
-          <FaqAccordion questions={faq} />
-        </CatCard>
+        <div data-tour-id="documentation-faq">
+          <CatCard label="FAQ" icon={<span style={{ fontSize: 15, fontWeight: 700, color: "#6B7280" }}>?</span>} iconBg="#F9FAFB" count={faq.length}>
+            <FaqAccordion questions={faq} />
+          </CatCard>
+        </div>
 
         {/* Catégories personnalisées (créées via "Autre") */}
         {customCats

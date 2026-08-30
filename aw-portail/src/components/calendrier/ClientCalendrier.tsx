@@ -9,6 +9,7 @@ import { db } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import type { RendezVous, RdvStatut } from "@/types/calendrier";
 import { CalendarDays, Plus, X, Check, Pencil, Ban, Link as LinkIcon } from "lucide-react";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 const CSS = `@keyframes spin { to { transform: rotate(360deg); } }`;
 
@@ -75,18 +76,21 @@ export function ClientCalendrier({ clientId }: { clientId: string }) {
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0A0A0A", margin: 0 }}>Calendrier</h2>
           <p style={{ fontSize: 12, color: "#9CA3AF", margin: "2px 0 0" }}>Vos rencontres avec l'équipe AW Solution</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "9px 16px", borderRadius: 10, border: "none",
-            background: "#0362E3", color: "#fff",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-          }}
-        >
-          <Plus size={14} />
-          Demande de rencontre
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={() => setShowForm(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 16px", borderRadius: 10, border: "none",
+              background: "#0362E3", color: "#fff",
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            <Plus size={14} />
+            Demande de rencontre
+          </button>
+          <TourSectionButton section="calendrier" />
+        </div>
       </div>
 
       {/* Formulaire de demande */}

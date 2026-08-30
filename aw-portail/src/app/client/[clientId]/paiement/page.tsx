@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "");
 
@@ -413,12 +414,15 @@ export default function PaiementPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] pt-6 pr-6 pb-16 pl-6">
-      <div className="max-w-3xl mx-auto space-y-5">
+      <div data-tour-id="paiement-carte" className="max-w-3xl mx-auto space-y-5">
 
         {/* En-tête */}
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Paiement</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Votre abonnement et vos factures</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Paiement</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Votre abonnement et vos factures</p>
+          </div>
+          <TourSectionButton section="paiement" />
         </div>
 
         {/* ── 1 — Forfait actuel ────────────────────────────────────────── */}

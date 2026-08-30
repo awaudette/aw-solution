@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sparkles, RefreshCw, FileText, Download } from "lucide-react";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 interface Nouveaute {
   id: string;
@@ -132,16 +133,19 @@ export default function NouveautesPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6F9" }}>
       <style>{CSS}</style>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 32px 80px" }}>
+      <div data-tour-id="nouveautes-fil" style={{ maxWidth: 720, margin: "0 auto", padding: "0 32px 80px" }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>
-            Mises à jour & Nouveautés
-          </h1>
-          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
-            Les dernières améliorations et fonctionnalités de votre plateforme AW Solution
-          </p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>
+              Mises à jour & Nouveautés
+            </h1>
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
+              Les dernières améliorations et fonctionnalités de votre plateforme AW Solution
+            </p>
+          </div>
+          <TourSectionButton section="nouveautes" />
         </div>
 
         {/* Onglets */}

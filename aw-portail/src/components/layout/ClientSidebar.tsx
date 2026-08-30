@@ -19,7 +19,9 @@ import {
   ChevronRight,
   CalendarDays,
   Sparkles,
+  Compass,
 } from "lucide-react";
+import { useTour } from "@/components/tour/TourProvider";
 
 type NavItem = { label: string; icon: React.ElementType; slug: string };
 
@@ -59,6 +61,7 @@ const MASTER_NAV: NavItem[] = [
 const DESCENDABLE_SLUGS = new Set(["contrat", "paiement", "branding", "roadmap"]);
 
 export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?: (v: boolean) => void }) {
+  const tour = useTour();
   const [expanded, setExpanded]             = useState(false);
   const [contratSigne, setContratSigne]     = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -254,8 +257,26 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
         {bottomItems.map(renderNavItem)}
       </nav>
 
+      {/* Revoir la visite guidée — distinct des 11 sections, pas un item de nav */}
+      <div className="pt-3 border-t border-gray-100 flex-shrink-0">
+        <button
+          onClick={() => tour.startFullTour()}
+          className="flex items-center gap-3 mx-2 px-2 py-2 rounded-md text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-colors w-[calc(100%-16px)] group relative"
+        >
+          <Compass size={18} className="flex-shrink-0" strokeWidth={1.5} />
+          {expanded && (
+            <span className="whitespace-nowrap font-medium">Revoir la visite guidée</span>
+          )}
+          {!expanded && (
+            <div className="absolute left-14 px-2 py-1 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+              Revoir la visite guidée
+            </div>
+          )}
+        </button>
+      </div>
+
       {/* Déconnexion */}
-      <div className="py-3 border-t border-gray-100 flex-shrink-0">
+      <div className="py-3 flex-shrink-0">
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 mx-2 px-2 py-2 rounded-md text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors w-[calc(100%-16px)] group relative"

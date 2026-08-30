@@ -16,6 +16,7 @@ import {
   User, Shield, Bell, Users, Plus, Trash2, Check,
   Phone, Mail, Eye, EyeOff, Pencil,
 } from "lucide-react";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 // ─── Styles communs ────────────────────────────────────────────────────────────
 
@@ -1020,14 +1021,23 @@ export default function ParametresPage({ params }: { params: Promise<{ clientId:
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6F9" }}>
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "32px 48px 80px" }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>Paramètres</h1>
-          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>Gérez les informations de votre compte, la sécurité et vos préférences.</p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>Paramètres</h1>
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>Gérez les informations de votre compte, la sécurité et vos préférences.</p>
+          </div>
+          <TourSectionButton section="parametres" />
         </div>
-        <BlocCompte         clientId={clientId} />
-        <BlocSecurite       clientId={clientId} />
-        <BlocUtilisateurs   clientId={clientId} />
-        <BlocNotifications  clientId={clientId} />
+        <div data-tour-id="parametres-compte">
+          <BlocCompte   clientId={clientId} />
+          <BlocSecurite clientId={clientId} />
+        </div>
+        <div data-tour-id="parametres-utilisateurs">
+          <BlocUtilisateurs clientId={clientId} />
+        </div>
+        <div data-tour-id="parametres-notifications">
+          <BlocNotifications clientId={clientId} />
+        </div>
       </div>
     </div>
   );

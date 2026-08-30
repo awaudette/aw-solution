@@ -15,6 +15,7 @@ import {
   CheckCircle, Clock, FileText, Plus, X, Paperclip,
   Video, Check,
 } from "lucide-react";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -885,22 +886,35 @@ export default function SupportPage({ params }: { params: Promise<{ clientId: st
       <div style={{ maxWidth: 760, margin: "0 auto", padding: "32px 32px 80px" }}>
 
         {/* En-tête */}
-        <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>Support</h1>
-          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>Contactez notre équipe ou soumettez une demande formelle.</p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0A0A0A", margin: "0 0 4px" }}>Support</h1>
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>Contactez notre équipe ou soumettez une demande formelle.</p>
+          </div>
+          <TourSectionButton section="support" />
         </div>
 
         {/* Bloc 1 — Coordonnées */}
-        <SupportHeader />
+        <div data-tour-id="support-entete">
+          <SupportHeader />
+        </div>
 
         {/* Bloc 2 — Messagerie */}
-        <MessagerieBloc clientId={clientId} client={client} />
+        <div data-tour-id="support-messagerie">
+          <MessagerieBloc clientId={clientId} client={client} />
+        </div>
 
         {/* Bloc 3 — Demande de support */}
-        <DemandeSupportBloc clientId={clientId} client={client} />
+        <div data-tour-id="support-demande">
+          <DemandeSupportBloc clientId={clientId} client={client} />
+        </div>
 
         {/* Bloc 4 — Rencontre mensuelle (Prestige) */}
-        {isPrestige && <RencontreMensuelleBloc clientId={clientId} client={client} />}
+        {isPrestige && (
+          <div data-tour-id="support-rencontre">
+            <RencontreMensuelleBloc clientId={clientId} client={client} />
+          </div>
+        )}
 
         {/* Bloc 5 — Statut plateforme */}
         <StatutPlatformeBloc />

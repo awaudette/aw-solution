@@ -17,6 +17,7 @@ import { SectionTemplates }   from "@/components/branding/SectionTemplates";
 import { SectionFichiers }    from "@/components/branding/SectionFichiers";
 import { SectionProfilClientele } from "@/components/branding/SectionProfilClientele";
 import { CheckCircle2, Sparkles } from "lucide-react";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 const ALL_SECTIONS = [
   { key: "infos",     label: "Informations" },
@@ -146,7 +147,7 @@ export default function BrandingPage({ params }: { params: Promise<{ clientId: s
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 48px 80px" }}>
 
         {/* Header */}
-        <div style={{
+        <div data-tour-id="branding-apercu" style={{
           background: "#fff", border: "1px solid #F3F4F6", borderRadius: 16,
           padding: 24, marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
         }}>
@@ -157,11 +158,14 @@ export default function BrandingPage({ params }: { params: Promise<{ clientId: s
                 Complétez les sections ci-dessous pour que notre équipe puisse construire votre application
               </p>
             </div>
-            {brandingComplete && (
-              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#166534", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "8px 14px" }}>
-                <Sparkles size={14} /> Branding complété
-              </span>
-            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {brandingComplete && (
+                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#166534", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "8px 14px" }}>
+                  <Sparkles size={14} /> Branding complété
+                </span>
+              )}
+              <TourSectionButton section="branding" />
+            </div>
           </div>
 
           {/* Progress bar */}
@@ -202,45 +206,61 @@ export default function BrandingPage({ params }: { params: Promise<{ clientId: s
 
         {/* Sections */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <SectionInfos
-            clientId={clientId}
-            main={main}
-            isComplete={completedSections.includes("infos")}
-          />
-          <SectionBranding
-            clientId={clientId}
-            main={main}
-            isComplete={completedSections.includes("branding")}
-          />
-          <SectionFidelite
-            clientId={clientId}
-            main={main}
-            isComplete={completedSections.includes("fidelite")}
-          />
-          <SectionSetup
-            clientId={clientId}
-            main={main}
-            isComplete={completedSections.includes("setup")}
-          />
-          <SectionSectionsApp
-            clientId={clientId}
-            main={main}
-            isComplete={completedSections.includes("sections")}
-          />
-          <SectionTemplates
-            clientId={clientId}
-            isComplete={completedSections.includes("templates")}
-          />
-          <SectionFichiers
-            clientId={clientId}
-            isComplete={completedSections.includes("fichiers")}
-          />
-          {isPrestige && (
-            <SectionProfilClientele
+          <div data-tour-id="branding-infos">
+            <SectionInfos
               clientId={clientId}
-              clientNom={clientNom}
-              isComplete={completedSections.includes("profil")}
+              main={main}
+              isComplete={completedSections.includes("infos")}
             />
+          </div>
+          <div data-tour-id="branding-visuel">
+            <SectionBranding
+              clientId={clientId}
+              main={main}
+              isComplete={completedSections.includes("branding")}
+            />
+          </div>
+          <div data-tour-id="branding-fidelite">
+            <SectionFidelite
+              clientId={clientId}
+              main={main}
+              isComplete={completedSections.includes("fidelite")}
+            />
+          </div>
+          <div data-tour-id="branding-setup">
+            <SectionSetup
+              clientId={clientId}
+              main={main}
+              isComplete={completedSections.includes("setup")}
+            />
+          </div>
+          <div data-tour-id="branding-sections-app">
+            <SectionSectionsApp
+              clientId={clientId}
+              main={main}
+              isComplete={completedSections.includes("sections")}
+            />
+          </div>
+          <div data-tour-id="branding-templates">
+            <SectionTemplates
+              clientId={clientId}
+              isComplete={completedSections.includes("templates")}
+            />
+          </div>
+          <div data-tour-id="branding-fichiers">
+            <SectionFichiers
+              clientId={clientId}
+              isComplete={completedSections.includes("fichiers")}
+            />
+          </div>
+          {isPrestige && (
+            <div data-tour-id="branding-profil-clientele">
+              <SectionProfilClientele
+                clientId={clientId}
+                clientNom={clientNom}
+                isComplete={completedSections.includes("profil")}
+              />
+            </div>
           )}
         </div>
 

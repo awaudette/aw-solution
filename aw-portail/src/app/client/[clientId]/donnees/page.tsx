@@ -13,6 +13,7 @@ import OngletAnalytique          from "@/components/donnees/OngletAnalytique";
 import OngletAnalytiqueEssentiel from "@/components/donnees/OngletAnalytiqueEssentiel";
 import OngletComptabilite        from "@/components/donnees/OngletComptabilite";
 import OngletHistorique          from "@/components/donnees/OngletHistorique";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 const S = {
@@ -113,7 +114,7 @@ function DonneesInner() {
   });
 
   return (
-    <div style={S.page}>
+    <div data-tour-id="donnees-apercu" style={S.page}>
       {/* ── En-tête ── */}
       <div style={S.header}>
         <div>
@@ -121,21 +122,24 @@ function DonneesInner() {
           <p style={S.sub}>Données à jour au {dateLabel}</p>
         </div>
 
-        {/* Sélecteur de franchise — visible si multi-franchise */}
-        {franchises.length > 1 && (
-          <select
-            style={S.select}
-            value={franchiseId}
-            onChange={(e) => setFranchiseId(e.target.value)}
-          >
-            <option value="global">Toutes les franchises</option>
-            {franchises.map((f) => (
-              <option key={f.franchiseId} value={f.franchiseId}>
-                {f.franchiseNom}
-              </option>
-            ))}
-          </select>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Sélecteur de franchise — visible si multi-franchise */}
+          {franchises.length > 1 && (
+            <select
+              style={S.select}
+              value={franchiseId}
+              onChange={(e) => setFranchiseId(e.target.value)}
+            >
+              <option value="global">Toutes les franchises</option>
+              {franchises.map((f) => (
+                <option key={f.franchiseId} value={f.franchiseId}>
+                  {f.franchiseNom}
+                </option>
+              ))}
+            </select>
+          )}
+          <TourSectionButton section="donnees" />
+        </div>
       </div>
 
       {/* ── Onglets ── */}

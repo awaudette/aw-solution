@@ -24,6 +24,7 @@ import { fmtNombre, fmtArgent } from "@/lib/mockAnalytics";
 import { useAnalyticsData, type AlerteItem, type RapportItem } from "@/hooks/useAnalyticsData";
 import type { AnalyticsGlobal, AlerteDoc as Alerte, SerieJournaliere } from "@/types/analytics";
 import type { ClientData, OnboardingEtape, ActiviteItem, MessageItem } from "@/hooks/useClientData";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 // ─── Enregistrement Chart.js ──────────────────────────────────────────────────
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Tooltip, Filler);
@@ -153,7 +154,11 @@ function Hero({ client, couleur, global }: { client: ClientData; couleur: string
   ];
 
   return (
-    <div style={{ background: gradient, borderRadius: 16, padding: "24px 32px", marginBottom: 20, position: "relative" }}>
+    <div data-tour-id="accueil-hero" style={{ background: gradient, borderRadius: 16, padding: "24px 32px", marginBottom: 20, position: "relative" }}>
+      <div style={{ position: "absolute", top: 16, right: 16, zIndex: 2 }}>
+        <TourSectionButton section="accueil" />
+      </div>
+
       {/* Ligne du haut */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
         <div>

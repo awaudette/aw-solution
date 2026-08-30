@@ -11,6 +11,7 @@ import { useRoadmapData } from "@/hooks/useRoadmapData";
 import type { StatutEtape, RencontreValidation } from "@/types/roadmap";
 import { CheckCircle2, ChevronRight, HelpCircle, Calendar } from "lucide-react";
 import { ClientJournalFeed } from "@/components/journal/ClientJournalFeed";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 /* ── Tooltips ───────────────────────────────────────────────────────────── */
 const TOOLTIPS: Record<string, string> = {
@@ -310,7 +311,7 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 32px 80px" }}>
 
         {/* ── Header card ── */}
-        <div style={{
+        <div data-tour-id="roadmap-entete" style={{
           background: "#fff", border: "1px solid #F3F4F6", borderRadius: 16,
           padding: 24, marginBottom: 28, boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
           animation: "fadeUp 350ms ease both",
@@ -322,13 +323,16 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
                 Suivez l'avancement de votre application en temps réel
               </p>
             </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
-                Date de lancement estimée
-              </p>
-              <p style={{ fontSize: 16, fontWeight: 700, color: roadmap.dateLancementEstimee ? "#0A0A0A" : "#C4C9D4", margin: 0 }}>
-                {formatDateFr(roadmap.dateLancementEstimee)}
-              </p>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexShrink: 0 }}>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
+                  Date de lancement estimée
+                </p>
+                <p style={{ fontSize: 16, fontWeight: 700, color: roadmap.dateLancementEstimee ? "#0A0A0A" : "#C4C9D4", margin: 0 }}>
+                  {formatDateFr(roadmap.dateLancementEstimee)}
+                </p>
+              </div>
+              <TourSectionButton section="roadmap" />
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
@@ -349,6 +353,7 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
           {(["progression", "journal"] as const).map(tab => (
             <button
               key={tab}
+              data-tour-tab={tab}
               onClick={() => setActiveTab(tab)}
               style={{
                 padding: "10px 18px", border: "none", background: "none", cursor: "pointer",
@@ -381,12 +386,14 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
 
         {/* ── Journal tab ── */}
         {activeTab === "journal" && (
-          <ClientJournalFeed clientId={clientId} />
+          <div data-tour-id="roadmap-journal">
+            <ClientJournalFeed clientId={clientId} />
+          </div>
         )}
 
         {/* ── Progression tab ── */}
         {activeTab === "progression" && (
-          <div style={{ position: "relative" }}>
+          <div data-tour-id="roadmap-progression" style={{ position: "relative" }}>
 
             {/* Vertical line */}
             <div style={{

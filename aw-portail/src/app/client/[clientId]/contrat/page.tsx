@@ -20,6 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { TourSectionButton } from "@/components/tour/TourSectionButton";
 
 interface ContratData {
   urlHTML:        string;
@@ -90,7 +91,7 @@ export default function ContratPage() {
   // Contrat signé
   if (contrat.statut === "signe") {
     return (
-      <div className="h-screen bg-[#F4F6F9] p-6 pb-0 flex flex-col gap-4">
+      <div data-tour-id="contrat-carte" className="h-screen bg-[#F4F6F9] p-6 pb-0 flex flex-col gap-4">
         <div className="flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
@@ -106,16 +107,19 @@ export default function ContratPage() {
               </p>
             </div>
           </div>
-          {contrat.urlPDF && (
-            <a
-              href={contrat.urlPDF}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:underline"
-            >
-              <ExternalLink size={12} /> Télécharger le PDF
-            </a>
-          )}
+          <div className="flex items-center gap-3">
+            {contrat.urlPDF && (
+              <a
+                href={contrat.urlPDF}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:underline"
+              >
+                <ExternalLink size={12} /> Télécharger le PDF
+              </a>
+            )}
+            <TourSectionButton section="contrat" />
+          </div>
         </div>
         <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           {contrat.urlPDF ? (
@@ -137,7 +141,7 @@ export default function ContratPage() {
 
   // Contrat en attente
   return (
-    <div className="min-h-screen bg-[#F4F6F9] p-6 flex flex-col gap-4">
+    <div data-tour-id="contrat-carte" className="min-h-screen bg-[#F4F6F9] p-6 flex flex-col gap-4">
       {/* Header */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -149,6 +153,7 @@ export default function ContratPage() {
             <p className="text-xs text-gray-500">Forfait {contrat.forfait} · Généré le {formatDate(contrat.genereLe)}</p>
           </div>
         </div>
+        <TourSectionButton section="contrat" />
       </div>
 
       {/* Iframe */}

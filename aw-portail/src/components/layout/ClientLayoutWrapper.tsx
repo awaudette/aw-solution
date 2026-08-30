@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import ClientSidebar from "./ClientSidebar";
+import { TourProvider } from "@/components/tour/TourProvider";
+import { TourEngine } from "@/components/tour/TourEngine";
 
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
@@ -21,14 +23,18 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <ClientSidebar onExpandedChange={setExpanded} />
-      <main
-        className="min-h-screen transition-all duration-200 ease-in-out"
-        style={{ marginLeft: expanded ? 220 : 56, paddingTop: 40 }}
-      >
-        {children}
-      </main>
-    </div>
+    <TourProvider>
+      <div className="min-h-screen bg-gray-50">
+        <ClientSidebar onExpandedChange={setExpanded} />
+        <main
+          className="min-h-screen transition-all duration-200 ease-in-out"
+          style={{ marginLeft: expanded ? 220 : 56, paddingTop: 40 }}
+        >
+          {children}
+        </main>
+
+        <TourEngine />
+      </div>
+    </TourProvider>
   );
 }
