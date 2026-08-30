@@ -5,25 +5,9 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import {
-  Home,
-  FileText,
-  CreditCard,
-  Palette,
-  Map,
-  BookOpen,
-  BarChart2,
-  LifeBuoy,
-  Settings,
-  LogOut,
-  ChevronRight,
-  CalendarDays,
-  Sparkles,
-  Compass,
-} from "lucide-react";
+import { LogOut, ChevronRight, Compass } from "lucide-react";
 import { useTour } from "@/components/tour/TourProvider";
-
-type NavItem = { label: string; icon: React.ElementType; slug: string };
+import { MASTER_NAV, DESCENDABLE_SLUGS, type NavItem } from "@/config/sections";
 
 /* Mots génériques à ignorer pour le calcul des initiales */
 const STOP_WORDS = new Set([
@@ -37,28 +21,6 @@ function getInitials(nom: string): string {
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
 }
-
-// ─── Ordre maître de la navigation ─────────────────────────────────────────
-// Quatre entrées (contrat, paiement, branding, roadmap) descendent en bas du
-// menu, indépendamment les unes des autres, dès que leur condition Firestore
-// respective est remplie — voir isSectionDone() plus bas. Les autres entrées
-// ne bougent jamais.
-const MASTER_NAV: NavItem[] = [
-  { label: "Accueil",            icon: Home,         slug: "accueil"      },
-  { label: "Contrat",            icon: FileText,     slug: "contrat"      },
-  { label: "Paiement",           icon: CreditCard,   slug: "paiement"     },
-  { label: "Branding",           icon: Palette,      slug: "branding"     },
-  { label: "Feuille de route",   icon: Map,          slug: "roadmap"      },
-  { label: "Documentation",      icon: BookOpen,     slug: "documentation"},
-  { label: "Données & rapports", icon: BarChart2,    slug: "donnees"      },
-  { label: "Calendrier",         icon: CalendarDays, slug: "calendrier"   },
-  { label: "Nouveautés",         icon: Sparkles,     slug: "nouveautes"   },
-  { label: "Support",            icon: LifeBuoy,     slug: "support"      },
-  { label: "Paramètres",         icon: Settings,     slug: "parametres"   },
-];
-
-/** Slugs éligibles à descendre en bas du menu une fois réglés. */
-const DESCENDABLE_SLUGS = new Set(["contrat", "paiement", "branding", "roadmap"]);
 
 export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?: (v: boolean) => void }) {
   const tour = useTour();
