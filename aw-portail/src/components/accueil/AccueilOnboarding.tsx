@@ -182,10 +182,14 @@ function BanniereAction({
   couleur: string;
   clientId: string;
 }) {
-  // Première étape CLIENT non complète
-  const incompleteClientEtape = etapes.find(
-    (e) => CLIENT_STEP_IDS.has(e.id) && e.statut !== "complete"
-  );
+  // Première étape CLIENT non complète — une liste vide compte comme "tout
+  // reste à faire", pas comme "tout est fait" (même filet de sécurité que
+  // hasActionRequired ci-dessus, si roadmap/main venait à manquer). Repli
+  // sur la première étape du parcours faute d'étape précise à nommer.
+  const clientEtapes = etapes.filter((e) => CLIENT_STEP_IDS.has(e.id));
+  const incompleteClientEtape = clientEtapes.length === 0
+    ? { id: "signature", nom: "Débuter la configuration de votre déploiement" }
+    : clientEtapes.find((e) => e.statut !== "complete");
 
   if (!incompleteClientEtape) {
     return (
@@ -347,10 +351,12 @@ function CardCeQuiSenVient({ etapes }: { etapes: OnboardingEtape[] }) {
 export function AccueilOnboarding({ clientId, client, etapes, activite, messages }: AccueilOnboardingProps) {
   const couleur = client.couleurPortail || "#0A1628";
 
-  // Badge rouge si au moins une étape CLIENT n'est pas complète
-  const hasActionRequired = etapes
-    .filter((e) => CLIENT_STEP_IDS.has(e.id))
-    .some((e) => e.statut !== "complete");
+  // Badge rouge si au moins une étape CLIENT n'est pas complète — une liste
+  // vide compte aussi comme action requise (rien n'est fait, pas "tout est
+  // fait" par vérité vacueuse de .some() sur un tableau vide). Filet de
+  // sécurité si clients/{clientId}/roadmap/main venait à manquer.
+  const clientEtapesForHero = etapes.filter((e) => CLIENT_STEP_IDS.has(e.id));
+  const hasActionRequired = clientEtapesForHero.length === 0 || clientEtapesForHero.some((e) => e.statut !== "complete");
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6F9" }}>

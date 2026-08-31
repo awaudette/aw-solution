@@ -4,6 +4,7 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { genererRapportPdf } from "./core/genererRapportPdf";
+import { seedRoadmapMain } from "./core/seedRoadmapMain";
 
 // Aucun argument requis : une Cloud Function déployée dans le projet aw-portail
 // obtient automatiquement des Application Default Credentials scopées à ce même
@@ -42,6 +43,31 @@ export const genererRapportPdfTrigger = onDocumentCreated(
       await genererRapportPdf(clientId, rapportId);
     } catch (err) {
       logger.error(`[genererRapportPdfTrigger] Échec clients/${clientId}/rapports/${rapportId}`, err);
+      throw err;
+    }
+  },
+);
+
+/**
+ * Déclenché à la création de clients/{clientId} — crée automatiquement
+ * clients/{clientId}/roadmap/main avec le gabarit des 14 étapes de
+ * déploiement, quelle que soit la façon dont le client a été créé (console
+ * Firebase, futur écran admin, script). Garanti, pas une étape qu'on peut
+ * oublier — voir functions/src/core/seedRoadmapMain.ts.
+ *
+ * Ne couvre pas les clients déjà existants au moment du déploiement de ce
+ * trigger (onDocumentCreated ne se déclenche qu'à la création) — c'est un
+ * correctif ponctuel séparé pour ceux-là (déjà fait pour aw-test).
+ */
+export const seedRoadmapMainTrigger = onDocumentCreated(
+  "clients/{clientId}",
+  async (event) => {
+    const { clientId } = event.params;
+    try {
+      await seedRoadmapMain(clientId);
+      logger.info(`[seedRoadmapMainTrigger] roadmap/main créé pour clients/${clientId}`);
+    } catch (err) {
+      logger.error(`[seedRoadmapMainTrigger] Échec clients/${clientId}`, err);
       throw err;
     }
   },
