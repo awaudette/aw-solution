@@ -50,8 +50,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Générer le lien d'activation (password reset → l'utilisateur définit son mot de passe)
-    const activationLink = await adminAuth.generatePasswordResetLink(courriel);
+    // 3. Générer le lien d'activation — lien de connexion par courriel
+    // (generateSignInWithEmailLink), même mécanisme que /api/client/invite
+    // (voir les commentaires là-bas : generatePasswordResetLink atterrit sur
+    // la page générique Firebase qui ne transmet rien à continueUrl, testé
+    // empiriquement ; le lien de connexion, lui, transmet mode/oobCode).
+    // email dans `url` elle-même (continueUrl), pas concaténé après le lien
+    // final — voir le commentaire détaillé dans /api/client/invite/route.ts.
+    const actionCodeSettings = {
+      url: `${process.env.NEXT_PUBLIC_APP_URL}/activation?email=${encodeURIComponent(courriel)}`,
+      handleCodeInApp: true,
+    };
+    const activationLink = await adminAuth.generateSignInWithEmailLink(courriel, actionCodeSettings);
 
     // 4. Créer/mettre à jour le document utilisateur
     const now = FieldValue.serverTimestamp();

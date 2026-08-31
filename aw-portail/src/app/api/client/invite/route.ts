@@ -44,14 +44,62 @@ export async function POST(req: NextRequest) {
       uid = newUser.uid;
     }
 
-    // 3. Claims : role client + clientId
+    // 2b. Ne jamais écraser un compte admin/employé existant qui utiliserait
+    // ce courriel — même garde que /api/admin/staff/invite, miroir inverse.
+    const existingTopLevel = await adminDb.collection("users").doc(uid).get();
+    if (existingTopLevel.exists && ["admin", "employe"].includes(existingTopLevel.data()?.role)) {
+      return NextResponse.json(
+        { error: "Ce courriel correspond déjà à un compte du personnel AW Solution." },
+        { status: 409 },
+      );
+    }
+
+    // 3. Claims : role client + clientId (non lues par la connexion — voir
+    // point 4 ci-dessous — conservées pour usage éventuel côté règles Firestore).
     await adminAuth.setCustomUserClaims(uid, { role: "client", clientId });
 
-    // 4. Générer le lien d'activation (password reset → l'utilisateur définit son mot de passe)
-    const activationLink = await adminAuth.generatePasswordResetLink(courriel);
+    // 4. Générer le lien d'activation — lien de connexion par courriel
+    // (generateSignInWithEmailLink), PAS generatePasswordResetLink : ce
+    // dernier est vérifié (empiriquement, pas juste documenté) atterrir sur
+    // la page générique Firebase qui consomme le code elle-même et ne
+    // transmet rien à continueUrl. Le lien de connexion, lui, transmet bien
+    // mode=signIn et oobCode jusqu'à /activation — confirmé par test réel.
+    // /activation appelle signInWithEmailLink (pas confirmPasswordReset),
+    // puis demande le mot de passe une fois l'utilisateur authentifié.
+    // Le courriel n'est pas un paramètre renvoyé par Firebase dans le lien —
+    // on l'ajoute nous-mêmes, /activation en a besoin pour signInWithEmailLink.
+    // IMPORTANT : doit faire partie de `url` elle-même (donc de continueUrl),
+    // pas être concaténé après le lien final — un ?email= collé après coup
+    // finit hors de continueUrl et Firebase ne le transmet jamais (vérifié :
+    // ça a atterri sur /activation sans le paramètre, testé en clic réel).
+    const actionCodeSettings = {
+      url: `${process.env.NEXT_PUBLIC_APP_URL}/activation?email=${encodeURIComponent(courriel)}`,
+      handleCodeInApp: true,
+    };
+    const activationLink = await adminAuth.generateSignInWithEmailLink(courriel, actionCodeSettings);
 
-    // 5. Créer le document utilisateur dans Firestore
+    // 5. Document d'authentification — users/{uid} TOP-LEVEL, exactement là
+    // où /api/auth/session, /api/auth/verify et requireClientAccess lisent
+    // role/clientId/statut (même emplacement que scripts/seed-*.mjs et
+    // /api/admin/staff/invite). Ne contient PAS permissions — voir §6.
     const now = FieldValue.serverTimestamp();
+    await adminDb.collection("users").doc(uid).set({
+      role: "client",
+      clientId,
+      nom,
+      courriel,
+      statut: "invitation_en_attente",
+      createdAt: existingTopLevel.exists ? (existingTopLevel.data()?.createdAt ?? now) : now,
+      invitedAt: now,
+    }, { merge: true });
+
+    // 6. Document de rôle/permissions — clients/{clientId}/users/{uid}, sous-
+    // collection déjà lue par le listener temps réel de parametres/page.tsx
+    // (liste "Utilisateurs"). Reste ici volontairement (option retenue avec
+    // Alex) : migrer ce listener vers une requête top-level filtrée par
+    // clientId exigerait de connaître les règles de sécurité Firestore
+    // réelles, qui n'existent pas dans ce dépôt (voir rapportMensuel.README.md
+    // pour un précédent similaire) — risque non vérifiable, pas pris ici.
     await adminDb
       .collection("clients").doc(clientId)
       .collection("users").doc(uid)
@@ -119,6 +167,21 @@ export async function DELETE(req: NextRequest) {
 
     if (!userId) return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
 
+    // Bloque réellement la connexion : /api/auth/session refuse toute session
+    // pour statut === "revoque" sur users/{uid} TOP-LEVEL (même mécanisme que
+    // /api/admin/staff/invite DELETE). Avant ce correctif, cette route ne
+    // touchait que la sous-collection, jamais lue par la connexion — la
+    // révocation n'avait donc aucun effet réel.
+    const targetSnap = await adminDb.collection("users").doc(userId).get();
+    if (!targetSnap.exists || targetSnap.data()?.clientId !== clientId) {
+      return NextResponse.json({ error: "Utilisateur introuvable pour ce client" }, { status: 404 });
+    }
+    await adminDb.collection("users").doc(userId).update({
+      statut: "revoque",
+      revokedAt: FieldValue.serverTimestamp(),
+    });
+
+    // Retire l'entrée de la liste "Utilisateurs" de parametres/page.tsx.
     await adminDb.collection("clients").doc(clientId).collection("users").doc(userId).delete();
 
     // Retirer les custom claims Firebase Auth

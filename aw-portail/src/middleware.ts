@@ -4,7 +4,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Routes publiques
-  if (pathname === "/login" || pathname === "/") {
+  // /activation : page de définition de mot de passe suite à un lien
+  // d'invitation (client ou employé) — voir actionCodeSettings dans
+  // /api/client/invite et /api/admin/staff/invite. Doit rester accessible
+  // sans session, l'utilisateur n'en a pas encore une à ce stade.
+  if (pathname === "/login" || pathname === "/" || pathname === "/activation") {
     return NextResponse.next();
   }
 
