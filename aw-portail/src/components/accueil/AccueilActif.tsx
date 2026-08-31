@@ -398,30 +398,34 @@ function CardNouveautes({ annonces }: { annonces: Annonce[] }) {
 }
 
 // ─── Rapport du mois ──────────────────────────────────────────────────────────
+// Deux types distincts (RapportDoc.type) : "comptable" (rapport mensuel,
+// tous forfaits) et "performance" (Prestige seulement, avec analyse IA).
+// Avant, un seul rapport était montré — le plus récent tous types confondus
+// — sans distinguer les deux, contrairement à la spec des écrans d'accueil.
 
-function CardRapport({ client, rapports }: { client: ClientData; rapports: RapportItem[] }) {
-  const dernierRapport = rapports[0]; // requête Firestore triée par generatedAt desc
-
-  if (!dernierRapport) return null;
-
-  const bonsCoups = dernierRapport.analyseIA.bonsCoups.slice(0, 2);
+function BlocUnRapport({
+  titre, rapport, avecBonsCoups,
+}: {
+  titre: string;
+  rapport: RapportItem | undefined;
+  avecBonsCoups: boolean;
+}) {
+  if (!rapport) return null;
+  const bonsCoups = avecBonsCoups ? rapport.analyseIA.bonsCoups.slice(0, 2) : [];
 
   return (
-    <div style={CARD}>
-      <p style={{ fontSize: 15, fontWeight: 600, color: "#0A0A0A", margin: "0 0 14px" }}>Rapport du mois</p>
-
-      {/* En-tête du rapport */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F8FAFC", borderRadius: 10, padding: "12px 16px", marginBottom: 14 }}>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F8FAFC", borderRadius: 10, padding: "12px 16px", marginBottom: bonsCoups.length > 0 ? 14 : 0 }}>
         <div>
           <p style={{ fontSize: 13, fontWeight: 600, color: "#0A0A0A", margin: "0 0 2px" }}>
-            Rapport de performance — {moisNomFR(dernierRapport.mois)} {dernierRapport.annee}
+            {titre} — {moisNomFR(rapport.mois)} {rapport.annee}
           </p>
           <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>
-            Généré le {dateCourteFR(dernierRapport.generatedAt)}
+            Généré le {dateCourteFR(rapport.generatedAt)}
           </p>
         </div>
-        {dernierRapport.pdfUrl ? (
-          <a href={dernierRapport.pdfUrl} target="_blank" rel="noopener noreferrer"
+        {rapport.pdfUrl ? (
+          <a href={rapport.pdfUrl} target="_blank" rel="noopener noreferrer"
             style={{ fontSize: 12, fontWeight: 600, color: "#0362E3", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "6px 12px", textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>
             <ExternalLink size={12} /> Télécharger PDF
           </a>
@@ -430,8 +434,7 @@ function CardRapport({ client, rapports }: { client: ClientData; rapports: Rappo
         )}
       </div>
 
-      {/* Analyse IA — Prestige seulement */}
-      {client.forfait === "Prestige" && bonsCoups.length > 0 && (
+      {bonsCoups.length > 0 && (
         <div>
           <p style={{ fontSize: 12, fontWeight: 700, color: "#059669", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
             <Star size={12} /> Vos bons coups ce mois
@@ -446,6 +449,24 @@ function CardRapport({ client, rapports }: { client: ClientData; rapports: Rappo
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CardRapport({ client, rapports }: { client: ClientData; rapports: RapportItem[] }) {
+  const rapportMensuel     = rapports.find((r) => r.type === "comptable");
+  const rapportPerformance = client.forfait === "Prestige" ? rapports.find((r) => r.type === "performance") : undefined;
+
+  if (!rapportMensuel && !rapportPerformance) return null;
+
+  return (
+    <div style={CARD}>
+      <p style={{ fontSize: 15, fontWeight: 600, color: "#0A0A0A", margin: "0 0 14px" }}>Rapport du mois</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <BlocUnRapport titre="Rapport mensuel" rapport={rapportMensuel} avecBonsCoups={false} />
+        {rapportMensuel && rapportPerformance && <div style={{ height: 1, background: "#F3F4F6" }} />}
+        <BlocUnRapport titre="Rapport de performance" rapport={rapportPerformance} avecBonsCoups />
+      </div>
     </div>
   );
 }

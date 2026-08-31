@@ -7,7 +7,7 @@ import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { LogOut, ChevronRight, Compass } from "lucide-react";
 import { useTour } from "@/components/tour/TourProvider";
-import { MASTER_NAV, DESCENDABLE_SLUGS, type NavItem } from "@/config/sections";
+import { MASTER_NAV, DESCENDABLE_SLUGS, PORTAL_SECTIONS, type NavItem, type SectionKey, type Permission } from "@/config/sections";
 
 /* Mots génériques à ignorer pour le calcul des initiales */
 const STOP_WORDS = new Set([
@@ -32,6 +32,10 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
   const [brandingComplete, setBrandingComplete]   = useState(false);
   const [paiementComplete, setPaiementComplete]   = useState(false);
   const [lancementComplete, setLancementComplete] = useState(false);
+  // null = accès complet (compte propriétaire, ou admin/employé) — voir
+  // /api/client/{clientId}/permissions. N'affecte que l'affichage ; la
+  // vraie garde vit dans src/middleware.ts.
+  const [permissions, setPermissions] = useState<Record<SectionKey, Permission> | null>(null);
 
   function handleExpand(v: boolean) {
     setExpanded(v);
@@ -90,6 +94,21 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
     });
   }, [clientId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/client/${clientId}/permissions`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setPermissions(d.permissions ?? null); })
+      .catch(() => { if (!cancelled) setPermissions(null); });
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  function hasAccess(slug: string): boolean {
+    if (!permissions || slug === "accueil") return true;
+    const section = PORTAL_SECTIONS.find((s) => s.slug === slug);
+    return !section || permissions[section.key] != null;
+  }
+
   function isSectionDone(slug: string): boolean {
     switch (slug) {
       case "contrat":  return contratSigne;
@@ -105,10 +124,10 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
   // fixe du tableau maître (pas l'ordre chronologique de complétion) — un
   // menu prévisible d'une visite à l'autre.
   const topItems = MASTER_NAV.filter(
-    (item) => !DESCENDABLE_SLUGS.has(item.slug) || !isSectionDone(item.slug),
+    (item) => hasAccess(item.slug) && (!DESCENDABLE_SLUGS.has(item.slug) || !isSectionDone(item.slug)),
   );
   const bottomItems = MASTER_NAV.filter(
-    (item) => DESCENDABLE_SLUGS.has(item.slug) && isSectionDone(item.slug),
+    (item) => hasAccess(item.slug) && DESCENDABLE_SLUGS.has(item.slug) && isSectionDone(item.slug),
   );
 
   function renderNavItem({ label, icon: Icon, slug }: NavItem) {

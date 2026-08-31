@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PORTAL_SECTIONS, type SectionKey, type Permission } from "@/config/sections";
+
+// "accueil" reste toujours accessible même sans permission explicite —
+// page d'atterrissage après connexion, ne peut pas être conditionnée sans
+// créer une boucle de redirection (même logique que ALWAYS_ACCESSIBLE_SECTIONS
+// côté admin, src/config/adminSections.ts).
+const ALWAYS_ACCESSIBLE_CLIENT_SLUGS = new Set(["accueil"]);
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -53,7 +60,9 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    const { role, clientId } = await verifyRes.json();
+    const { role, clientId, permissions } = await verifyRes.json() as {
+      role: string; clientId: string | null; permissions: Record<SectionKey, Permission> | null;
+    };
 
     // Protection des routes client : un client ne peut accéder qu'à son propre clientId
     if (pathname.startsWith("/client/")) {
@@ -62,6 +71,20 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(
           new URL(`/client/${clientId}/accueil`, request.url)
         );
+      }
+
+      // Permissions par section — uniquement pour un rôle "client" restreint.
+      // permissions === null = compte propriétaire (pas de document dans
+      // clients/{clientId}/users/{uid}) = accès complet, aucune vérification
+      // à faire. Admin/employé toujours autorisés, peu importe la section.
+      const slug = pathname.split("/")[3] ?? "";
+      if (role === "client" && permissions && !ALWAYS_ACCESSIBLE_CLIENT_SLUGS.has(slug)) {
+        const section = PORTAL_SECTIONS.find((s) => s.slug === slug);
+        if (section && permissions[section.key] == null) {
+          return NextResponse.redirect(
+            new URL(`/client/${clientId}/accueil`, request.url)
+          );
+        }
       }
     }
 

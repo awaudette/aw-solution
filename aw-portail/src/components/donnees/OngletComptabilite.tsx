@@ -7,6 +7,7 @@ import type {
   ComptabiliteFranchise,
 } from "@/types/analytics";
 import type { RapportItem } from "@/hooks/useAnalyticsData";
+import type { ClientData } from "@/hooks/useClientData";
 import { fmtNombre, fmtArgent, fmtPct } from "@/lib/mockAnalytics";
 
 const CARD: React.CSSProperties = {
@@ -16,10 +17,17 @@ const CARD: React.CSSProperties = {
 };
 
 // ─── Mois disponibles ─────────────────────────────────────────────────────────
-function buildMoisList(): { value: string; label: string }[] {
+// Bornes dynamiques : du mois courant jusqu'au mois de lancement du client
+// (client.dateLancement) — repli sur 12 mois avant le mois courant si cette
+// date est absente. Plus aucune borne codée en dur.
+function buildMoisList(dateLancement: Date | null): { value: string; label: string }[] {
   const months: { value: string; label: string }[] = [];
-  let y = 2026, m = 7;
-  const startY = 2026, startM = 2;
+  const now = new Date();
+  let y = now.getFullYear(), m = now.getMonth() + 1;
+
+  const debut = dateLancement ?? new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  const startY = debut.getFullYear(), startM = debut.getMonth() + 1;
+
   while (y > startY || (y === startY && m >= startM)) {
     const d = new Date(y, m - 1, 1);
     months.push({
@@ -264,10 +272,11 @@ interface Props {
   franchiseData: AnalyticsFranchise | null;
   franchiseName: string;
   rapports:      RapportItem[];
+  client:        ClientData;
 }
 
-export default function OngletComptabilite({ global, franchiseData, franchiseName, rapports }: Props) {
-  const moisList = useMemo(() => buildMoisList(), []);
+export default function OngletComptabilite({ global, franchiseData, franchiseName, rapports, client }: Props) {
+  const moisList = useMemo(() => buildMoisList(client.dateLancement), [client.dateLancement]);
   const [moisRef, setMoisRef] = useState(moisList[0].value);
 
   // Id déterministe, identique à celui écrit par POST /api/sync/analytics —
@@ -304,6 +313,13 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
 
   const factures = useMemo(() => filterFranchise(c.facturesDetail),     [c.facturesDetail,     franchiseData]);
   const reclams  = useMemo(() => filterFranchise(c.reclamationsDetail), [c.reclamationsDetail, franchiseData]);
+
+  // Cette franchise a des revenus (synthese.revenus > 0, chiffre déjà scopé,
+  // fiable) mais aucune facture ne lui correspond après filtrage par nom —
+  // signe quasi certain que franchiseData.franchiseNom ne correspond pas aux
+  // valeurs de facturesDetail[].franchise. Signalé plutôt que laissé comme
+  // un tableau vide sans explication.
+  const facturesMismatch = !!(franchiseData && synthese && synthese.revenus > 0 && factures.length === 0);
 
   // ── Promotions fusionnées ─────────────────────────────────────────────────
   const mergedPromos: MergedPromo[] = useMemo(() =>
@@ -394,6 +410,17 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
           </p>
         </div>
       ) : null /* vue globale sans données — ne devrait pas arriver */ }
+
+      {facturesMismatch && (
+        <div style={{
+          background: "#FFFBEB", border: "1px solid #FDE68A", borderLeft: "3px solid #D97706",
+          borderRadius: 8, padding: "12px 16px", fontSize: 13, fontWeight: 600, color: "#92400E",
+        }}>
+          ⚠️ {franchiseName} a des revenus enregistrés ce mois-ci, mais aucune facture ne lui correspond
+          dans le détail ci-dessous — le nom de franchise a probablement changé ou diffère entre les
+          systèmes. Les tableaux suivants sont incomplets pour cette franchise.
+        </div>
+      )}
 
       {/* ── Factures ── */}
       <div style={CARD}>

@@ -112,6 +112,14 @@ export async function genererRapportPdf(
   let synthese: Comptabilite["synthese"];
   let snapshotFinMois: Comptabilite["snapshotFinMois"];
   let nomCommerce = client.restaurant;
+  // Détecte un désaccord probable entre franchiseNom (analytics/{franchiseId})
+  // et les valeurs de facturesDetail[].franchise/reclamationsDetail[].franchise
+  // du rapport global — le filtrage se fait par comparaison de chaînes (voir
+  // README, section "Filtrage par franchise"), donc un renommage ou une
+  // orthographe différente d'un côté fait disparaître silencieusement toutes
+  // les lignes de cette franchise. Signalé plutôt que laissé comme un tableau
+  // vide sans explication.
+  let facturesMismatchDetecte = false;
 
   if (franchiseId) {
     // Rapport par franchise : synthese/snapshotFinMois viennent du rapport
@@ -135,6 +143,11 @@ export async function genererRapportPdf(
     facturesDetail = globalCompta ? globalCompta.facturesDetail.filter((f) => f.franchise.trim().toLowerCase() === franchiseNomNorm) : [];
     reclamationsDetail = globalCompta ? globalCompta.reclamationsDetail.filter((r) => r.franchise.trim().toLowerCase() === franchiseNomNorm) : [];
     promotions = globalCompta ? globalCompta.promotions : [];
+
+    // synthese.revenus > 0 = cette franchise a bel et bien eu des ventes ce
+    // mois-ci (chiffre déjà scopé, fiable) ; facturesDetail vide malgré ça =
+    // le filtrage par nom n'a rien trouvé alors qu'il aurait dû.
+    facturesMismatchDetecte = synthese.revenus > 0 && facturesDetail.length === 0;
   } else {
     const compta = rapport.donnees as Comptabilite;
     facturesDetail = compta.facturesDetail;
@@ -262,6 +275,10 @@ export async function genererRapportPdf(
     FACTURES_TOTAL_NB: fmtNombre(facturesDetail.length),
     FACTURES_TOTAL_MONTANT: fmtArgent(totalFacturesMontant),
     FACTURES_TOTAL_POINTS: fmtNombre(totalFacturesPoints),
+
+    FACTURES_MISMATCH_WARNING: facturesMismatchDetecte
+      ? '<p class="mention-avertissement">⚠️ Cette franchise a des revenus enregistrés ce mois-ci, mais aucune facture ne lui correspond dans le détail — le nom de franchise a probablement changé ou diffère entre les systèmes. Ce résumé est incomplet, à vérifier avec AW Solution.</p>'
+      : "",
   };
 
   // ── Rendu HTML ────────────────────────────────────────────────────────────
@@ -277,6 +294,10 @@ export async function genererRapportPdf(
 
   const footerRaw = fs.readFileSync(path.join(templateDir, "rapportMensuelPiedDePage.html"), "utf8");
   const footerHtml = replaceScalars(footerRaw, { NOM_COMMERCE: scalaires.NOM_COMMERCE, COULEUR_ACCENT: scalaires.COULEUR_ACCENT });
+
+  if (facturesMismatchDetecte) {
+    logger.warn(`[genererRapportPdf] Désaccord franchiseNom/facturesDetail détecté pour clients/${clientId}/rapports/${rapportId} — revenus > 0 mais aucune facture filtrée.`);
+  }
 
   // ── PDF via Puppeteer + Chromium serverless ──────────────────────────────
   logger.info(`[genererRapportPdf] Lancement Chromium pour clients/${clientId}/rapports/${rapportId}`);

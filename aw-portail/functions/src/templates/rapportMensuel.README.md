@@ -302,6 +302,14 @@ surveiller si un client renomme une franchise ; migration propre plus tard
 = ajouter un `franchiseId` sur `ComptabiliteFacture`/`ComptabiliteReclamation`
 et filtrer par id.
 
+**Ce n'est plus un échec silencieux** : si `synthese.revenus > 0` pour la
+franchise mais que `facturesDetail` filtré est vide, `facturesMismatchDetecte`
+passe à `true` — `logger.warn` côté Cloud Function, et le jeton
+`{{FACTURES_MISMATCH_WARNING}}` (section 4 du PDF) affiche un avertissement
+visible (`.mention-avertissement`, jaune) plutôt qu'un tableau vide sans
+explication. Même détection et même style d'avertissement côté écran dans
+`OngletComptabilite.tsx` (`facturesMismatch`).
+
 `promotions[]` n'a pas de champ franchise du tout (voir Section 2 ci-dessus)
 — affiché tel quel (réseau entier) avec la mention explicite, jamais
 filtré.

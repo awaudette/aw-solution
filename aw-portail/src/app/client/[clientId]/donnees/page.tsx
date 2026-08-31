@@ -99,6 +99,14 @@ function DonneesInner() {
     );
   }
 
+  if (!client) {
+    return (
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 20, height: 20, border: "2px solid #0362E3", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+      </div>
+    );
+  }
+
   // ── Aucune donnée : la sync n'a jamais tourné pour ce client ────
   if (!hasData || !global) {
     return (
@@ -203,6 +211,7 @@ function DonneesInner() {
           franchiseData={franchiseData}
           franchiseName={franchiseName}
           rapports={rapports}
+          client={client}
         />
       )}
       {activeTab === "historique" && (

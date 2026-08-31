@@ -20,6 +20,7 @@
 import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useAnalyticsData } from "@/hooks/useAnalyticsData";
+import { useClientData } from "@/hooks/useClientData";
 import type { AnalyticsFranchise } from "@/types/analytics";
 import { TABS, type TabId } from "@/lib/donneesTabs";
 import OngletResume              from "@/components/donnees/OngletResume";
@@ -63,6 +64,7 @@ export function AdminDonneesViewer({ clientId, forfait }: Props) {
   const [franchiseId, setFranchiseId]   = useState("global");
 
   const { global, franchises, alertes, rapports, loading, hasData } = useAnalyticsData(clientId);
+  const { client } = useClientData(clientId);
 
   const franchiseData: AnalyticsFranchise | null = useMemo(
     () => franchiseId === "global"
@@ -75,6 +77,14 @@ export function AdminDonneesViewer({ clientId, forfait }: Props) {
   const visibleTabs = TABS.filter((t) => !t.prestige || isPrestige);
 
   if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-gray-400">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (!client) {
     return (
       <div className="flex items-center justify-center py-16 text-gray-400">
         <Loader2 size={20} className="animate-spin" />
@@ -170,6 +180,7 @@ export function AdminDonneesViewer({ clientId, forfait }: Props) {
           franchiseData={franchiseData}
           franchiseName={franchiseName}
           rapports={rapports}
+          client={client}
         />
       )}
       {activeSubTab === "historique" && (
