@@ -502,6 +502,11 @@ export interface RapportDoc {
     aTravailler: string[];
   };
   pdfUrl?:    string;
+  /** CSV du détail facture par facture du mois (rapports "comptable" uniquement) —
+   *  écrit à côté de pdfUrl par la même étape de la Cloud Function, une fois le
+   *  PDF généré. Le PDF n'affiche plus qu'un résumé quotidien pour cette section
+   *  (voir functions/src/templates/rapportMensuel.README.md, section 4). */
+  facturesCsvUrl?: string;
   publie:     boolean;
   generatedAt:Date;
 }

@@ -169,6 +169,7 @@ export function AdminDonneesViewer({ clientId, forfait }: Props) {
           franchises={franchises}
           franchiseData={franchiseData}
           franchiseName={franchiseName}
+          rapports={rapports}
         />
       )}
       {activeSubTab === "historique" && (

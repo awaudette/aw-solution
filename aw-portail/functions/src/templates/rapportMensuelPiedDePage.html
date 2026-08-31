@@ -1,0 +1,39 @@
+<!--
+  rapportMensuelPiedDePage.html
+  ══════════════════════════════════════════════════════════════════════════
+  Contenu à passer tel quel (après remplacement des jetons scalaires) à
+  page.pdf({ displayHeaderFooter: true, footerTemplate: <ce fichier> }).
+
+  Puppeteer rend footerTemplate dans un cadre HTML isolé et minuscule, SANS
+  hériter du CSS de rapportMensuel.html (ni de ses polices embarquées) — le
+  style doit donc être 100% inline ici, et on reste volontairement sur une
+  pile de polices système (le pied de page est un élément discret, pas
+  besoin d'Inter pour quelques mots en 8px). Puppeteer expose des classes
+  spéciales à l'intérieur de footerTemplate : "pageNumber" et "totalPages"
+  sont automatiquement remplies par le moteur de rendu — ne pas les
+  remplacer soi-même.
+
+  Jetons scalaires à remplacer avant de passer ce contenu à page.pdf() :
+    {{NOM_COMMERCE}}
+    {{COULEUR_ACCENT}}
+
+  Réserver assez d'espace en bas de page pour ce pied (voir le commentaire
+  dans rapportMensuel.html — margin.bottom: "18mm" est un bon point de
+  départ, à ajuster si le texte est coupé).
+-->
+<div style="
+  width: 100%;
+  font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 8px;
+  color: #9aa3af;
+  padding: 0 10mm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #e3e7ec;
+  padding-top: 4px;
+">
+  <span>{{NOM_COMMERCE}}</span>
+  <span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+  <span style="color: {{COULEUR_ACCENT}}; font-weight: 600;">AW Solution</span>
+</div>

@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# firebase functions (sous-projet isolé — voir functions/.gitignore)
+/functions/node_modules
+/functions/lib
+
 # production
 /build
 

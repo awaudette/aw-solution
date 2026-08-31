@@ -1,0 +1,9 @@
+# Compiled JS output (produit par `npm run build`, redéployé à chaque `firebase deploy`)
+lib/
+
+# Dépendances propres à ce sous-projet — séparées de node_modules/ racine (Next.js)
+node_modules/
+
+# Logs des emulateurs / CLI Firebase
+firebase-debug.log
+firebase-debug.*.log

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import * as XLSX from "xlsx";
 import type {
   AnalyticsGlobal, AnalyticsFranchise,
   ComptabiliteFacture, ComptabiliteReclamation,
   ComptabiliteFranchise,
 } from "@/types/analytics";
+import type { RapportItem } from "@/hooks/useAnalyticsData";
 import { fmtNombre, fmtArgent, fmtPct } from "@/lib/mockAnalytics";
 
 const CARD: React.CSSProperties = {
@@ -160,94 +160,23 @@ interface MergedPromo {
   revenusGeneres:  number;
 }
 
-// ─── Export Excel multi-feuillets ─────────────────────────────────────────────
-function exportXlsx(args: {
-  moisRef:     string;
-  moisLabel:   string;
-  scopeLabel:  string;
-  synthese:    AnalyticsGlobal["comptabilite"]["synthese"] | ComptabiliteFranchise["synthese"];
-  snapshot:    AnalyticsGlobal["comptabilite"]["snapshotFinMois"];
-  dernierJour: string;
-  factures:    ComptabiliteFacture[];
-  reclams:     ComptabiliteReclamation[];
-  promos:      MergedPromo[];
-}) {
-  const { moisRef, moisLabel, scopeLabel, synthese, snapshot, dernierJour, factures, reclams, promos } = args;
-  const wb = XLSX.utils.book_new();
-
-  const wsS = XLSX.utils.aoa_to_sheet([
-    [`Rapport comptable — ${moisLabel} — ${scopeLabel}`],
-    [],
-    ["Indicateur", "Valeur"],
-    ["Revenus",                synthese.revenus],
-    ["Inscriptions",           synthese.inscriptions],
-    ["Membres actifs",         synthese.membresActifs],
-    ["Membres total",          synthese.membresTotal],
-    ["Notif. envoyées",        synthese.notifEnvoyees],
-    ["Taux ouverture push",    synthese.tauxOuverturePush],
-    ["Visites",      synthese.visites],
-    ["Points distribués",      synthese.pointsDistribues],
-    ["Valeur pts distribués",  snapshot.valeurPointsDistribues],
-    ["Points rachetés",        synthese.pointsRachetes],
-    ["Food cost réclamations", synthese.valeurRachetee],
-    ["Bonus attribués",        synthese.bonusAttribues],
-    ["Valeur bonus",           synthese.valeurBonus],
-    [],
-    [`Cumulatifs au ${dernierJour}`],
-    ["Membres totaux",          snapshot.membresTotal],
-    ["Revenus totaux",          snapshot.revenusTotal],
-    ["Visites total", snapshot.visites],
-    ["Points en circulation",   snapshot.pointsEnCirculation],
-  ]);
-  XLSX.utils.book_append_sheet(wb, wsS, "Synthèse");
-
-  const wsF = XLSX.utils.aoa_to_sheet([
-    ["Date", "Franchise", "Montant ($)", "Points attribués", "Code promo", "Promotion liée", "Rabais appliqué ($)"],
-    ...factures.map((f) => [
-      f.date, f.franchise, f.montant, f.pointsAttribues,
-      f.codePromo ?? "—", f.promotionLiee ?? "—", f.rabaisApplique ?? "—",
-    ]),
-  ]);
-  XLSX.utils.book_append_sheet(wb, wsF, "Factures");
-
-  const wsR = XLSX.utils.aoa_to_sheet([
-    ["Date", "Récompense", "Franchise", "Points réclamés", "Food cost ($)"],
-    ...reclams.map((r) => [r.date, r.recompense, r.franchise, r.pointsReclames, r.foodCost]),
-  ]);
-  XLSX.utils.book_append_sheet(wb, wsR, "Réclamations");
-
-  const wsP = XLSX.utils.aoa_to_sheet([
-    ["Promotion", "Code", "Période", "Type de rabais", "Utilisations totales", "Coût réel ($)", "Revenus totaux ($)"],
-    ...promos.map((p) => [
-      p.nom, p.code, p.periode, p.typeRabais, p.utilisations,
-      p.coutReel === 0 ? "—" : p.coutReel, p.revenusGeneres,
-    ]),
-  ]);
-  XLSX.utils.book_append_sheet(wb, wsP, "Promotions");
-
-  const buf  = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
-  a.download = `rapport-comptable-${scopeLabel.toLowerCase().replace(/\s+/g, "-")}-${moisRef}.xlsx`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 // ─── Bloc Synthèse ────────────────────────────────────────────────────────────
 type SyntheseShape = AnalyticsGlobal["comptabilite"]["synthese"] | ComptabiliteFranchise["synthese"];
 type SnapshotShape = AnalyticsGlobal["comptabilite"]["snapshotFinMois"];
 
 function BlocSynthese({
-  synthese, snapshot, dernierJour, moisLabel, scopeLabel, onExport,
+  synthese, snapshot, dernierJour, moisLabel, scopeLabel, pdfUrl, facturesCsvUrl,
 }: {
-  synthese:    SyntheseShape;
-  snapshot:    SnapshotShape;
-  dernierJour: string;
-  moisLabel:   string;
-  scopeLabel:  string;
-  onExport:    () => void;
+  synthese:       SyntheseShape;
+  snapshot:       SnapshotShape;
+  dernierJour:    string;
+  moisLabel:      string;
+  scopeLabel:     string;
+  /** PDF déjà généré par la Cloud Function genererRapportPdf — jamais généré
+   *  au clic (Vercel Hobby coupe à 10 s, Puppeteer en prend 10-15 rien qu'au
+   *  démarrage de Chromium). Absent tant que la clôture du mois n'a pas eu lieu. */
+  pdfUrl?:        string;
+  facturesCsvUrl?: string;
 }) {
   return (
     <div style={CARD}>
@@ -255,12 +184,32 @@ function BlocSynthese({
         <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: 0 }}>
           Synthèse — {moisLabel}
         </h2>
-        <button onClick={onExport} style={{
-          padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
-          background: "#2a78d6", color: "white", border: "none", cursor: "pointer",
-        }}>
-          ↓ Exporter le rapport — {scopeLabel}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {facturesCsvUrl && (
+            <a href={facturesCsvUrl} style={{ fontSize: 13, fontWeight: 600, color: "#2a78d6" }}>
+              Détail factures (CSV)
+            </a>
+          )}
+          {pdfUrl ? (
+            <a href={pdfUrl} target="_blank" rel="noopener noreferrer" style={{
+              padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+              background: "#2a78d6", color: "white", textDecoration: "none", display: "inline-block",
+            }}>
+              ↓ Exporter le rapport — {scopeLabel}
+            </a>
+          ) : (
+            <button
+              disabled
+              title="Le PDF de ce rapport n'a pas encore été généré pour ce mois."
+              style={{
+                padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+                background: "#E5E7EB", color: "#9CA3AF", border: "none", cursor: "not-allowed",
+              }}
+            >
+              ↓ Exporter le rapport — {scopeLabel}
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
@@ -314,11 +263,17 @@ interface Props {
   franchises:    AnalyticsFranchise[];
   franchiseData: AnalyticsFranchise | null;
   franchiseName: string;
+  rapports:      RapportItem[];
 }
 
-export default function OngletComptabilite({ global, franchiseData, franchiseName }: Props) {
+export default function OngletComptabilite({ global, franchiseData, franchiseName, rapports }: Props) {
   const moisList = useMemo(() => buildMoisList(), []);
   const [moisRef, setMoisRef] = useState(moisList[0].value);
+
+  // Id déterministe, identique à celui écrit par POST /api/sync/analytics —
+  // voir functions/src/templates/rapportMensuel.README.md.
+  const rapportId = franchiseData ? `comptable-${moisRef}-${franchiseData.franchiseId}` : `comptable-${moisRef}`;
+  const rapportCourant = rapports.find((r) => r.id === rapportId);
 
   const c         = global.comptabilite;
   const moisLabel = moisList.find((m) => m.value === moisRef)?.label ?? "";
@@ -337,9 +292,14 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
   const snapshot: SnapshotShape | null = franchiseData ? franchiseCpt?.snapshotFinMois ?? null : c.snapshotFinMois;
 
   // ── Filtrage des détails ──────────────────────────────────────────────────
+  // Bug corrigé : comparait franchise (nom affiché, ex. "Poké Station
+  // Trois-Rivières") à franchiseId (slug, ex. "trois-rivieres") — ne pouvait
+  // jamais matcher. Comparaison par nom désormais, comme côté Cloud Function
+  // (functions/src/core/genererRapportPdf.ts) — même fragilité assumée et
+  // documentée dans rapportMensuel.README.md (matching par chaîne, pas par id).
   const filterFranchise = <T extends { franchise: string }>(items: T[]): T[] =>
     franchiseData
-      ? items.filter((f) => f.franchise.toLowerCase() === franchiseData.franchiseId)
+      ? items.filter((f) => f.franchise.trim().toLowerCase() === franchiseData.franchiseNom.trim().toLowerCase())
       : items;
 
   const factures = useMemo(() => filterFranchise(c.facturesDetail),     [c.facturesDetail,     franchiseData]);
@@ -392,11 +352,6 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
     { header: "Revenus totaux",        key: "revenusGeneres",  fmt: (v) => fmtArgent(v as number), align: "right" },
   ];
 
-  function handleExportXlsx() {
-    if (!synthese || !snapshot) return;
-    exportXlsx({ moisRef, moisLabel, scopeLabel: franchiseName, dernierJour, synthese, snapshot, factures, reclams, promos: mergedPromos });
-  }
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
 
@@ -424,7 +379,8 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
           dernierJour={dernierJour}
           moisLabel={moisLabel}
           scopeLabel={franchiseName}
-          onExport={handleExportXlsx}
+          pdfUrl={rapportCourant?.pdfUrl}
+          facturesCsvUrl={rapportCourant?.facturesCsvUrl}
         />
       ) : franchiseData ? (
         /* Phase 3 non déployée pour cette franchise → masqué, jamais données globales */

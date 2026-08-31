@@ -202,6 +202,7 @@ function DonneesInner() {
           franchises={franchises}
           franchiseData={franchiseData}
           franchiseName={franchiseName}
+          rapports={rapports}
         />
       )}
       {activeTab === "historique" && (
