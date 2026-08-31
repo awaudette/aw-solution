@@ -12,22 +12,31 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Détermine le nom du cookie selon la route :
-  //   /admin/...              → session_admin
-  //   /client/{clientId}/...  → session_client_{clientId}
-  // Cela permet d'avoir admin + plusieurs clients ouverts simultanément
-  // dans des onglets séparés sans interférence de session.
-  let cookieName: string;
+  // Détermine quel cookie de session utiliser selon la route :
+  //   /admin/...              → session_admin (admin ET employé — même
+  //                              cookie, voir /api/auth/session:33-35)
+  //   /client/{clientId}/...  → session_admin en priorité s'il existe
+  //                              (un admin/employé doit pouvoir accéder à
+  //                              n'importe quel client sans y avoir ouvert
+  //                              de session cliente séparée — la
+  //                              vérification de rôle plus bas laisse déjà
+  //                              passer admin/employé pour tout clientId ;
+  //                              encore fallait-il atteindre cette
+  //                              vérification, ce que l'ancienne version ne
+  //                              permettait jamais), sinon le cookie client
+  //                              spécifique à ce clientId.
+  // Cela permet aussi d'avoir admin + plusieurs clients ouverts
+  // simultanément dans des onglets séparés sans interférence de session.
+  let sessionCookie: string | undefined;
   if (pathname.startsWith("/admin")) {
-    cookieName = "session_admin";
+    sessionCookie = request.cookies.get("session_admin")?.value;
   } else if (pathname.startsWith("/client/")) {
     const routeClientId = pathname.split("/")[2];
-    cookieName = `session_client_${routeClientId}`;
+    sessionCookie = request.cookies.get("session_admin")?.value
+      ?? request.cookies.get(`session_client_${routeClientId}`)?.value;
   } else {
-    cookieName = "session_admin";
+    sessionCookie = request.cookies.get("session_admin")?.value;
   }
-
-  const sessionCookie = request.cookies.get(cookieName)?.value;
 
   if (!sessionCookie) {
     return NextResponse.redirect(new URL("/login", request.url));

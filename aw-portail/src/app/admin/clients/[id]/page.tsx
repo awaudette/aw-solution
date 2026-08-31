@@ -41,7 +41,10 @@ import {
   Check,
   RefreshCw,
   BarChart3,
+  UserPlus,
 } from "lucide-react";
+import { PORTAL_SECTIONS } from "@/config/sections";
+import type { SectionKey, Permission, Permissions } from "@/config/sections";
 import { AdminBrandingViewer } from "@/components/admin/AdminBrandingViewer";
 import { AdminRoadmapViewer } from "@/components/admin/AdminRoadmapViewer";
 import { AdminCalendrierClient } from "@/components/calendrier/AdminCalendrierClient";
@@ -170,6 +173,19 @@ function AdminClientDetailContent() {
   const [tokenCopied, setTokenCopied]     = useState(false);
   const [syncError, setSyncError]         = useState<string | null>(null);
 
+  // Accès client — bouton "Inviter le propriétaire"
+  const ownerDefaultPermissions: Permissions = Object.fromEntries(
+    PORTAL_SECTIONS.map((s) => [s.key, s.maxPermission as Permission]),
+  ) as Permissions; // écriture partout, sauf Paramètres plafonné à lecture (maxPermission) — un propriétaire part avec accès complet
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteNom, setInviteNom]           = useState("");
+  const [inviteTitre, setInviteTitre]       = useState("Propriétaire");
+  const [inviteCourriel, setInviteCourriel] = useState("");
+  const [invitePerms, setInvitePerms]       = useState<Permissions>(ownerDefaultPermissions);
+  const [inviteSending, setInviteSending]   = useState(false);
+  const [inviteErrors, setInviteErrors]     = useState<string[]>([]);
+  const [inviteSuccess, setInviteSuccess]   = useState(false);
+
   // Messages
   const [messages, setMessages] = useState<Message[]>([]);
   const [msgTexte, setMsgTexte] = useState("");
@@ -288,6 +304,41 @@ function AdminClientDetailContent() {
     await navigator.clipboard.writeText(newToken);
     setTokenCopied(true);
     setTimeout(() => setTokenCopied(false), 2000);
+  }
+
+  function setInvitePermission(key: SectionKey, val: Permission) {
+    setInvitePerms((p) => ({ ...p, [key]: val }));
+  }
+
+  async function handleInviteOwner() {
+    setInviteErrors([]);
+    const errs: string[] = [];
+    if (!inviteNom.trim()) errs.push("Le nom complet est requis.");
+    if (!inviteTitre.trim()) errs.push("Le titre est requis.");
+    if (!inviteCourriel.trim() || !inviteCourriel.includes("@")) errs.push("Un courriel valide est requis.");
+    if (errs.length > 0) { setInviteErrors(errs); return; }
+
+    setInviteSending(true);
+    try {
+      const res = await fetch("/api/client/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: id, nom: inviteNom, titre: inviteTitre, courriel: inviteCourriel, permissions: invitePerms }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Erreur lors de l'envoi.");
+      }
+      setInviteSuccess(true);
+      setShowInviteForm(false);
+      setInviteNom("");
+      setInviteCourriel("");
+      setInvitePerms(ownerDefaultPermissions);
+    } catch (e: unknown) {
+      setInviteErrors([(e as Error).message || "Erreur lors de l'envoi."]);
+    } finally {
+      setInviteSending(false);
+    }
   }
 
   async function handleMarquerSigne() {
@@ -613,6 +664,8 @@ function AdminClientDetailContent() {
             </div>
           </div>
 
+          <div className="space-y-4">
+
           {/* Contrat */}
           <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm h-fit">
             <div className="flex items-center gap-2 mb-4">
@@ -711,6 +764,126 @@ function AdminClientDetailContent() {
                 ))}
               </ol>
             </div>
+          </div>
+
+          {/* Accès client */}
+          <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm h-fit">
+            <div className="flex items-center gap-2 mb-4">
+              <UserPlus size={16} className="text-blue-600" />
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Accès client
+              </h2>
+            </div>
+
+            {!showInviteForm ? (
+              <div className="space-y-4">
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Invite directement le propriétaire au portail client, sans passer par
+                  l&apos;onglet Paramètres du client. Accès complet à toutes les sections par défaut,
+                  ajustable ci-dessous avant l&apos;envoi.
+                </p>
+                {inviteSuccess && (
+                  <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                    <CheckCircle size={12} /> Invitation envoyée.
+                  </p>
+                )}
+                <button
+                  onClick={() => { setInviteSuccess(false); setShowInviteForm(true); }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  <UserPlus size={14} /> Inviter le propriétaire
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Nom complet *</label>
+                  <input
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:border-blue-500"
+                    value={inviteNom}
+                    onChange={(e) => setInviteNom(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Titre *</label>
+                  <input
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:border-blue-500"
+                    value={inviteTitre}
+                    onChange={(e) => setInviteTitre(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Courriel *</label>
+                  <input
+                    type="email"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 outline-none focus:border-blue-500"
+                    value={inviteCourriel}
+                    onChange={(e) => setInviteCourriel(e.target.value)}
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Accès aux sections</p>
+                  <div className="flex flex-col">
+                    {PORTAL_SECTIONS.map((section) => {
+                      const value = invitePerms[section.key as SectionKey] ?? null;
+                      const isEnabled = value !== null;
+                      return (
+                        <div key={section.key} className="flex items-center justify-between gap-3 py-2 border-b border-gray-50">
+                          <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isEnabled}
+                              onChange={(e) => setInvitePermission(section.key as SectionKey, e.target.checked ? "lecture" : null)}
+                              className="w-3.5 h-3.5 accent-blue-600 cursor-pointer flex-shrink-0"
+                            />
+                            <span className="text-xs font-medium text-gray-700">{section.label}</span>
+                          </label>
+                          {isEnabled ? (
+                            <select
+                              value={value ?? ""}
+                              onChange={(e) => setInvitePermission(section.key as SectionKey, e.target.value as Permission)}
+                              className="text-xs rounded-md border border-gray-200 px-1.5 py-1 flex-shrink-0"
+                            >
+                              <option value="lecture">Lecture</option>
+                              {section.maxPermission === "ecriture" && <option value="ecriture">Lecture et écriture</option>}
+                            </select>
+                          ) : (
+                            <span className="text-xs text-gray-300 flex-shrink-0">Aucun accès</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {inviteErrors.length > 0 && (
+                  <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+                    {inviteErrors.map((e, i) => (
+                      <p key={i} className="text-xs text-red-600">• {e}</p>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleInviteOwner}
+                    disabled={inviteSending}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {inviteSending ? "Envoi…" : "Envoyer l'invitation"}
+                  </button>
+                  <button
+                    onClick={() => setShowInviteForm(false)}
+                    className="px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           </div>
         </div>
       )}
