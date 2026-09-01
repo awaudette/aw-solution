@@ -17,13 +17,17 @@ const CARD: React.CSSProperties = {
 };
 
 // ─── Mois disponibles ─────────────────────────────────────────────────────────
-// Bornes dynamiques : du mois courant jusqu'au mois de lancement du client
-// (client.dateLancement) — repli sur 12 mois avant le mois courant si cette
-// date est absente. Plus aucune borne codée en dur.
+// Bornes dynamiques : du dernier mois COMPLÉTÉ jusqu'au mois de lancement du
+// client (client.dateLancement) — repli sur 12 mois avant le mois courant si
+// cette date est absente. Plus aucune borne codée en dur.
+// Le mois en cours est exclu inconditionnellement : il n'est jamais clôturé
+// avant le 1er du mois suivant, donc jamais dans cette liste avant cette date.
 function buildMoisList(dateLancement: Date | null): { value: string; label: string }[] {
   const months: { value: string; label: string }[] = [];
   const now = new Date();
   let y = now.getFullYear(), m = now.getMonth() + 1;
+  m--;
+  if (m === 0) { m = 12; y--; }
 
   const debut = dateLancement ?? new Date(now.getFullYear(), now.getMonth() - 12, 1);
   const startY = debut.getFullYear(), startM = debut.getMonth() + 1;

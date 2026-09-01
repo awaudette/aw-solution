@@ -453,8 +453,13 @@ function BlocUnRapport({
   );
 }
 
-function CardRapport({ client, rapports }: { client: ClientData; rapports: RapportItem[] }) {
-  const rapportMensuel     = rapports.find((r) => r.type === "comptable");
+function CardRapport({ client, rapports, moisRef }: { client: ClientData; rapports: RapportItem[]; moisRef: string }) {
+  // Id déterministe du rapport comptable GLOBAL du dernier mois clos (sans
+  // franchiseId), identique à celui écrit par POST /api/sync/analytics et lu
+  // par OngletComptabilite.tsx — jamais un .find() par type seul, qui peut
+  // remonter un rapport PAR FRANCHISE du même mois (généré séparément, PDF
+  // pas forcément prêt en même temps) au lieu du rapport global attendu ici.
+  const rapportMensuel     = rapports.find((r) => r.id === `comptable-${moisRef}`);
   const rapportPerformance = client.forfait === "Prestige" ? rapports.find((r) => r.type === "performance") : undefined;
 
   if (!rapportMensuel && !rapportPerformance) return null;
@@ -668,7 +673,7 @@ export function AccueilActif({ clientId, client, activite, messages }: AccueilAc
               promosActives={global.aVie.promosActives ?? 0}
               membresActifs30j={global["30j"].membresActifs} />
             <CardNouveautes annonces={annonces} />
-            <CardRapport    client={client} rapports={rapports} />
+            <CardRapport    client={client} rapports={rapports} moisRef={global.comptabilite.moisRef} />
             {client.forfait === "Prestige" && (
               <CardRencontre rencontre={rencontre} clientId={clientId} />
             )}
