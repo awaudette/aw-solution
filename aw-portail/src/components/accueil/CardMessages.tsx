@@ -54,12 +54,18 @@ interface CardMessagesProps {
 export function CardMessages({ clientId, messages }: CardMessagesProps) {
   const router = useRouter();
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [erreur, setErreur] = useState<string | null>(null);
 
-  // Tous les messages admin, non cachés localement
+  // Messages admin non lus, non cachés localement. Le filtre !m.lu est la
+  // source de vérité persistée (Firestore) — hidden n'est qu'un masquage
+  // optimiste instantané au clic, en attendant que l'écriture se propage via
+  // onSnapshot. Sans !m.lu ici, un message marqué lu réapparaissait après un
+  // F5 : hidden se réinitialise à chaque montage, donc l'écriture Firestore
+  // (bien réelle) n'avait aucun effet sur ce qui s'affiche.
   const visible = messages.filter(
-    (m) => (m.auteurRole as string) === "admin" && !hidden.has(m.id)
+    (m) => (m.auteurRole as string) === "admin" && !m.lu && !hidden.has(m.id)
   );
-  const nonLus = visible.filter((m) => !m.lu).length;
+  const nonLus = visible.length;
 
   function handleVoir(m: MessageItem) {
     // Voir = navigation seulement, sans marquer comme lu
@@ -68,9 +74,21 @@ export function CardMessages({ clientId, messages }: CardMessagesProps) {
   }
 
   async function handleMarquerLu(m: MessageItem) {
-    // Crochet = marquer comme lu + masquer de la card, sans naviguer
-    await updateDoc(doc(db, "clients", clientId, "messages", m.id), { lu: true });
+    // Crochet = masquage optimiste immédiat + écriture Firestore. Si
+    // l'écriture échoue, on annule le masquage (le message redevient visible)
+    // et on l'explique — jamais de faux positif silencieux.
+    setErreur(null);
     setHidden((prev) => new Set([...prev, m.id]));
+    try {
+      await updateDoc(doc(db, "clients", clientId, "messages", m.id), { lu: true });
+    } catch {
+      setHidden((prev) => {
+        const next = new Set(prev);
+        next.delete(m.id);
+        return next;
+      });
+      setErreur("Impossible de marquer ce message comme lu — réessaie.");
+    }
   }
 
   function typeTag(typeMsg?: string) {
@@ -90,6 +108,25 @@ export function CardMessages({ clientId, messages }: CardMessagesProps) {
           </span>
         )}
       </div>
+
+      {/* Erreur d'écriture Firestore — le crochet a échoué, le message n'a pas été
+          marqué lu, on le dit plutôt que de laisser croire que ça a fonctionné. */}
+      {erreur && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+          background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8,
+          padding: "8px 12px", fontSize: 12, color: "#B91C1C", marginBottom: 12,
+        }}>
+          <span>{erreur}</span>
+          <button
+            onClick={() => setErreur(null)}
+            style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", fontSize: 13, lineHeight: 1, flexShrink: 0 }}
+            aria-label="Fermer"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Liste */}
       {visible.length === 0 ? (
