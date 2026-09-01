@@ -19,5 +19,14 @@ export interface RendezVous {
   clientId?: string;   // pour la vue globale admin
   clientNom?: string;
   lienRencontre?: string | null; // lien Zoom / Google Meet / Teams
-  reminderEnvoye?: boolean;      // true une fois le rappel 2h envoyé
+  /** Ids Resend des rappels 2h programmés (scheduledAt) — null une fois
+   *  annulés par reconcilierRappels ou si l'envoi a été immédiat (fenêtre de
+   *  2h déjà entamée au moment de la programmation, rien à annuler).
+   *  Voir src/lib/rendezvousReminders.ts. */
+  rappelResendIdAdmin?:  string | null;
+  rappelResendIdClient?: string | null;
+  /** date/heure de la rencontre au moment où le rappel a été programmé —
+   *  sert à détecter une modification manuelle depuis (voir reconcilierRappels). */
+  rappelPourDate?:  string | null;
+  rappelPourHeure?: string | null;
 }

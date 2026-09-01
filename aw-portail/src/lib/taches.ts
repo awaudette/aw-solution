@@ -3,6 +3,7 @@ import { FieldValue, FieldPath, Timestamp, type DocumentData, type DocumentRefer
 import { resend } from "@/lib/resend";
 import { PORTEE_VALUES, PRIORITE_VALUES, type Portee, type Priorite } from "@/config/taches";
 import type { StaffRole } from "@/lib/requireAdmin";
+import { aujourdhuiMontreal, finDeJourneeMontreal } from "@/lib/tz";
 
 /** Uids du personnel (users/{uid}.role) correspondant aux rôles demandés. */
 export async function getStaffUids(roles: StaffRole[]): Promise<string[]> {
@@ -348,4 +349,103 @@ export async function notifyStaffOfTache(params: {
     // Échec des lectures préparatoires (users/clients) — journalisé, jamais propagé.
     console.error("[notifyStaffOfTache] échec général", err);
   }
+}
+
+// ─── Résumé quotidien des échéances (cron 8h) ────────────────────────────────
+
+function digestEcheanceHtml(taches: DocumentData[]): string {
+  const triees = [...taches].sort((a, b) => {
+    const ta = a.dateEcheance instanceof Timestamp ? a.dateEcheance.toMillis() : 0;
+    const tb = b.dateEcheance instanceof Timestamp ? b.dateEcheance.toMillis() : 0;
+    return ta - tb; // plus en retard d'abord
+  });
+
+  const lignes = triees.map((t) => {
+    const echeanceIso = t.dateEcheance instanceof Timestamp ? t.dateEcheance.toDate().toISOString() : null;
+    return `
+      <div style="padding:10px 0;border-bottom:1px solid #F3F4F6">
+        <p style="font-size:14px;font-weight:600;color:#0A0A0A;margin:0 0 4px">
+          ${t.titre ?? ""}${t.priorite === "urgente" ? ` <span style="color:#DC2626;font-size:11px;font-weight:700">· URGENTE</span>` : ""}
+        </p>
+        ${echeanceIso ? `<p style="font-size:12px;color:#6B7280;margin:0">Échéance : ${formatDateEmail(echeanceIso, t.heureEcheance === true)}</p>` : ""}
+      </div>`;
+  }).join("");
+
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:36px 24px;color:#1F2937">
+      <div style="margin-bottom:24px">
+        <span style="background:#0362E3;color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px">AW Solution</span>
+      </div>
+      <h2 style="font-size:20px;font-weight:700;margin:0 0 10px;color:#0A0A0A">Tâches en retard ou dues aujourd'hui</h2>
+      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:4px 20px;margin-bottom:24px">
+        ${lignes}
+      </div>
+      <a href="https://portail.awsolution.ca/admin/a-faire"
+         style="display:inline-block;background:#0362E3;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9px;font-size:14px;font-weight:600">
+        Voir mes tâches →
+      </a>
+    </div>
+  `;
+}
+
+export interface DigestEcheancesResult { courriels: number; taches: number; errors: string[] }
+
+/**
+ * Résumé quotidien des tâches en retard/dues aujourd'hui — un seul courriel
+ * par personne assignée (pas un par tâche), envoyé immédiatement par le cron
+ * de 8h (pas de scheduledAt : on est déjà à l'heure voulue).
+ *
+ * Filtre uniquement sur `statut in [...]` côté Firestore : combiner un `in`/
+ * `!=` sur `statut` avec un range (`<=`) sur `dateEcheance` (champ différent)
+ * est refusé par Firestore (les filtres d'inégalité d'une requête composée
+ * doivent porter sur le même champ) — la comparaison à l'échéance se fait
+ * donc en mémoire, ce qui est sans conséquence vu le faible volume de tâches.
+ */
+export async function sendEcheanceDigest(): Promise<DigestEcheancesResult> {
+  const errors: string[] = [];
+  const cutoff = finDeJourneeMontreal(aujourdhuiMontreal());
+
+  const snap = await adminDb.collection("taches")
+    .where("statut", "in", ["a_faire", "en_cours"])
+    .get();
+
+  const enRetardParUid = new Map<string, DocumentData[]>();
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const echeance = data.dateEcheance instanceof Timestamp ? data.dateEcheance.toDate() : null;
+    if (!echeance || echeance.getTime() > cutoff.getTime()) continue;
+    for (const uid of (data.assignes ?? []) as string[]) {
+      const liste = enRetardParUid.get(uid) ?? [];
+      liste.push({ ...data, id: doc.id });
+      enRetardParUid.set(uid, liste);
+    }
+  }
+
+  const totalTaches = [...enRetardParUid.values()].reduce((n, l) => n + l.length, 0);
+  if (enRetardParUid.size === 0) return { courriels: 0, taches: 0, errors };
+
+  const uids = [...enRetardParUid.keys()];
+  const usersSnap = await adminDb.collection("users")
+    .where(FieldPath.documentId(), "in", uids)
+    .get();
+  const usersById = new Map(usersSnap.docs.map(d => [d.id, d.data()]));
+
+  let courriels = 0;
+  for (const [uid, taches] of enRetardParUid) {
+    const courriel = usersById.get(uid)?.courriel;
+    if (!courriel) continue;
+    try {
+      await resend.emails.send({
+        from: "AW Solution <noreply@awsolution.ca>",
+        to: courriel,
+        subject: `📋 ${taches.length} tâche${taches.length > 1 ? "s" : ""} en retard ou due${taches.length > 1 ? "s" : ""} aujourd'hui`,
+        html: digestEcheanceHtml(taches),
+      });
+      courriels++;
+    } catch (e) {
+      errors.push(`digest ${uid}: ${String(e)}`);
+    }
+  }
+
+  return { courriels, taches: totalTaches, errors };
 }

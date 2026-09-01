@@ -123,7 +123,7 @@ function AdminRdvForm({ clientId, onClose }: { clientId: string; onClose: () => 
         titre: titre.trim(), description: description.trim(),
         date, heure, statut: "en_attente", initiateur: "admin",
         raisonRefus: null, nouvelleDate: null, nouvelleHeure: null,
-        lienRencontre: lien, reminderEnvoye: false,
+        lienRencontre: lien,
         createdAt: now, updatedAt: now,
       });
 
