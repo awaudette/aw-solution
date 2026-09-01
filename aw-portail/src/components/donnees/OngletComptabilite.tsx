@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import type {
   AnalyticsGlobal, AnalyticsFranchise,
   ComptabiliteFacture, ComptabiliteReclamation,
-  ComptabiliteFranchise,
+  ComptabiliteFranchise, Comptabilite,
 } from "@/types/analytics";
 import type { RapportItem } from "@/hooks/useAnalyticsData";
 import type { ClientData } from "@/hooks/useClientData";
@@ -275,17 +275,21 @@ interface Props {
   client:        ClientData;
 }
 
-export default function OngletComptabilite({ global, franchiseData, franchiseName, rapports, client }: Props) {
+export default function OngletComptabilite({ franchiseData, franchiseName, rapports, client }: Props) {
   const moisList = useMemo(() => buildMoisList(client.dateLancement), [client.dateLancement]);
   const [moisRef, setMoisRef] = useState(moisList[0].value);
 
-  // Id déterministe, identique à celui écrit par POST /api/sync/analytics —
-  // voir functions/src/templates/rapportMensuel.README.md.
-  const rapportId = franchiseData ? `comptable-${moisRef}-${franchiseData.franchiseId}` : `comptable-${moisRef}`;
-  const rapportCourant = rapports.find((r) => r.id === rapportId);
-
-  const c         = global.comptabilite;
   const moisLabel = moisList.find((m) => m.value === moisRef)?.label ?? "";
+
+  const now = new Date();
+  const estMoisEnCours = moisRef === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  // Ids déterministes, identiques à ceux écrits par POST /api/sync/analytics —
+  // voir functions/src/templates/rapportMensuel.README.md.
+  const rapportGlobalId = `comptable-${moisRef}`;
+  const rapportId       = franchiseData ? `comptable-${moisRef}-${franchiseData.franchiseId}` : rapportGlobalId;
+  const rapportGlobal   = rapports.find((r) => r.id === rapportGlobalId);
+  const rapportCourant  = rapports.find((r) => r.id === rapportId);
 
   const [moisY, moisM] = moisRef.split("-").map(Number);
   const dernierJour    = new Date(moisY, moisM, 0).toLocaleDateString("fr-CA", {
@@ -293,12 +297,43 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
   });
 
   // ── RÈGLE STRICTE ────────────────────────────────────────────────────────
-  //   Vue franchise  → uniquement franchiseData.comptabilite
-  //                    Si absent (Phase 3 non déployé) : masqué, jamais global
-  //   Vue globale    → global.comptabilite
-  const franchiseCpt: ComptabiliteFranchise | null = franchiseData?.comptabilite ?? null;
-  const synthese: SyntheseShape | null = franchiseData ? franchiseCpt?.synthese  ?? null : c.synthese;
-  const snapshot: SnapshotShape | null = franchiseData ? franchiseCpt?.snapshotFinMois ?? null : c.snapshotFinMois;
+  //   Bug corrigé : cet onglet lisait global.comptabilite / franchiseData.comptabilite,
+  //   qui ne contiennent que le DERNIER mois clôturé (voir le commentaire sur
+  //   Comptabilite.moisRef dans src/types/analytics.ts) — changer le sélecteur de
+  //   mois ne changeait donc jamais les chiffres affichés, seulement le titre.
+  //   La vraie source par mois est le rapport figé clients/{clientId}/rapports/
+  //   comptable-{moisRef}[-{franchiseId}] (voir rapportMensuel.README.md).
+  //
+  //   Vue franchise  → synthese/snapshot depuis le rapport PAR FRANCHISE de ce mois.
+  //                    factures/réclamations/promotions/codesPromo n'existent que sur
+  //                    le rapport GLOBAL du même mois (ComptabiliteFranchise n'a pas
+  //                    ces tableaux) — filtrés par nom de franchise, comme le fait
+  //                    genererRapportPdf côté Cloud Function.
+  //   Vue globale    → tout depuis le rapport global de ce mois.
+  const donneesGlobalMois: Comptabilite | null =
+    (rapportGlobal?.donnees as unknown as Comptabilite | undefined) ?? null;
+  const donneesFranchiseMois: ComptabiliteFranchise | null = franchiseData
+    ? (rapportCourant?.donnees as unknown as ComptabiliteFranchise | undefined) ?? null
+    : null;
+
+  // Phase 3 jamais déployée pour cette franchise (distinct d'un rapport pas encore
+  // généré pour LE MOIS choisi ci-dessous) — dérivé du doc live franchiseData.comptabilite,
+  // présent dès que la CF cliente pousse la comptabilité par franchise, peu importe
+  // le mois consulté.
+  const franchiseCptDeploye = !!franchiseData?.comptabilite;
+
+  const synthese: SyntheseShape | null = franchiseData ? donneesFranchiseMois?.synthese       ?? null : donneesGlobalMois?.synthese       ?? null;
+  const snapshot: SnapshotShape | null = franchiseData ? donneesFranchiseMois?.snapshotFinMois ?? null : donneesGlobalMois?.snapshotFinMois ?? null;
+
+  // Rapport comptable introuvable pour le mois sélectionné (pas encore clôturé/généré) —
+  // distinct de "Phase 3 non déployée" ci-dessus. Deux portées différentes :
+  //   - factures/réclamations/promotions dépendent toujours du rapport GLOBAL,
+  //     même en vue franchise (ComptabiliteFranchise n'a pas ces tableaux) ;
+  //   - la synthèse dépend du rapport PAR FRANCHISE en vue franchise (peut manquer
+  //     pour un mois donné même si le rapport global existe, ex. franchise ajoutée
+  //     après ce mois-là) et du rapport global en vue globale.
+  const rapportMoisIndisponible = !donneesGlobalMois;
+  const syntheseMoisIndisponible = franchiseData ? !donneesFranchiseMois : !donneesGlobalMois;
 
   // ── Filtrage des détails ──────────────────────────────────────────────────
   // Bug corrigé : comparait franchise (nom affiché, ex. "Poké Station
@@ -311,20 +346,29 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
       ? items.filter((f) => f.franchise.trim().toLowerCase() === franchiseData.franchiseNom.trim().toLowerCase())
       : items;
 
-  const factures = useMemo(() => filterFranchise(c.facturesDetail),     [c.facturesDetail,     franchiseData]);
-  const reclams  = useMemo(() => filterFranchise(c.reclamationsDetail), [c.reclamationsDetail, franchiseData]);
+  const factures = useMemo(
+    () => filterFranchise(donneesGlobalMois?.facturesDetail ?? []),
+    [donneesGlobalMois, franchiseData],
+  );
+  const reclams = useMemo(
+    () => filterFranchise(donneesGlobalMois?.reclamationsDetail ?? []),
+    [donneesGlobalMois, franchiseData],
+  );
 
   // Cette franchise a des revenus (synthese.revenus > 0, chiffre déjà scopé,
   // fiable) mais aucune facture ne lui correspond après filtrage par nom —
   // signe quasi certain que franchiseData.franchiseNom ne correspond pas aux
   // valeurs de facturesDetail[].franchise. Signalé plutôt que laissé comme
-  // un tableau vide sans explication.
-  const facturesMismatch = !!(franchiseData && synthese && synthese.revenus > 0 && factures.length === 0);
+  // un tableau vide sans explication. Exclu si le rapport du mois est carrément
+  // absent (déjà signalé par rapportMoisIndisponible, pas un problème de nom).
+  const facturesMismatch = !!(franchiseData && synthese && synthese.revenus > 0 && !rapportMoisIndisponible && factures.length === 0);
 
   // ── Promotions fusionnées ─────────────────────────────────────────────────
-  const mergedPromos: MergedPromo[] = useMemo(() =>
-    c.promotions.map((p) => {
-      const code = c.codesPromo.find((cp) => cp.promotionLiee === p.nom);
+  const mergedPromos: MergedPromo[] = useMemo(() => {
+    const promotions = donneesGlobalMois?.promotions ?? [];
+    const codesPromo  = donneesGlobalMois?.codesPromo ?? [];
+    return promotions.map((p) => {
+      const code = codesPromo.find((cp) => cp.promotionLiee === p.nom);
       return {
         nom:            p.nom,
         code:           code?.code ?? "—",
@@ -334,9 +378,27 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
         coutReel:       p.coutReel,
         revenusGeneres: p.revenusGeneres,
       };
-    }),
-    [c.promotions, c.codesPromo],
-  );
+    });
+  }, [donneesGlobalMois]);
+
+  // ── Fallback rapport indisponible (tables) ─────────────────────────────────
+  // Utilisé pour Factures/Réclamations/Promotions quand le rapport du mois
+  // sélectionné n'existe pas encore — jamais un tableau vide silencieux.
+  function tableOuFallback(node: React.ReactNode) {
+    if (!rapportMoisIndisponible) return node;
+    return (
+      <div style={{
+        padding: "32px 16px", textAlign: "center",
+        background: "#FAFAFA", border: "1px dashed #E5E7EB", borderRadius: 10,
+      }}>
+        <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
+          {estMoisEnCours
+            ? "Le mois en cours n'est pas encore clôturé."
+            : `Aucun rapport comptable n'a été généré pour ${moisLabel.toLowerCase()}.`}
+        </p>
+      </div>
+    );
+  }
 
   // ── Colonnes ──────────────────────────────────────────────────────────────
   const colsFactures: ColDef[] = [
@@ -387,18 +449,8 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
         </span>
       </div>
 
-      {/* ── Synthèse : données franchise OU globale OU masqué ── */}
-      {synthese && snapshot ? (
-        <BlocSynthese
-          synthese={synthese}
-          snapshot={snapshot}
-          dernierJour={dernierJour}
-          moisLabel={moisLabel}
-          scopeLabel={franchiseName}
-          pdfUrl={rapportCourant?.pdfUrl}
-          facturesCsvUrl={rapportCourant?.facturesCsvUrl}
-        />
-      ) : franchiseData ? (
+      {/* ── Synthèse : données franchise OU globale OU masqué/indisponible ── */}
+      {franchiseData && !franchiseCptDeploye ? (
         /* Phase 3 non déployée pour cette franchise → masqué, jamais données globales */
         <div style={{ ...CARD, background: "#FAFAFA", border: "1px dashed #D1D5DB", textAlign: "center", padding: 40 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
@@ -409,7 +461,32 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
             Les agrégats par franchise seront générés automatiquement à la clôture du mois (Phase 3 — portailSyncJob).
           </p>
         </div>
-      ) : null /* vue globale sans données — ne devrait pas arriver */ }
+      ) : syntheseMoisIndisponible ? (
+        /* Rapport du mois sélectionné pas encore clôturé/généré (globalement, ou
+           pour cette franchise précisément) → jamais les chiffres d'un autre mois
+           affichés à sa place. */
+        <div style={{ ...CARD, background: "#FAFAFA", border: "1px dashed #D1D5DB", textAlign: "center", padding: 40 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🗓️</div>
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#374151", margin: "0 0 8px" }}>
+            Rapport non disponible{franchiseData ? ` pour ${franchiseName}` : ""} — {moisLabel}
+          </p>
+          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
+            {estMoisEnCours
+              ? "Le mois en cours n'est pas encore clôturé — revenez après la clôture mensuelle."
+              : "Aucun rapport comptable n'a été généré pour ce mois."}
+          </p>
+        </div>
+      ) : synthese && snapshot ? (
+        <BlocSynthese
+          synthese={synthese}
+          snapshot={snapshot}
+          dernierJour={dernierJour}
+          moisLabel={moisLabel}
+          scopeLabel={franchiseName}
+          pdfUrl={rapportCourant?.pdfUrl}
+          facturesCsvUrl={rapportCourant?.facturesCsvUrl}
+        />
+      ) : null /* rapport présent mais synthese/snapshot absents — ne devrait pas arriver */ }
 
       {facturesMismatch && (
         <div style={{
@@ -432,7 +509,9 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
             </span>
           )}
         </h3>
-        <Table cols={colsFactures} data={factures as unknown as Row[]} csvName={`factures-${moisRef}`} pageSize={5} />
+        {tableOuFallback(
+          <Table cols={colsFactures} data={factures as unknown as Row[]} csvName={`factures-${moisRef}`} pageSize={5} />,
+        )}
       </div>
 
       {/* ── Réclamations ── */}
@@ -445,7 +524,9 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
             </span>
           )}
         </h3>
-        <Table cols={colsReclam} data={reclams as unknown as Row[]} csvName={`reclamations-${moisRef}`} />
+        {tableOuFallback(
+          <Table cols={colsReclam} data={reclams as unknown as Row[]} csvName={`reclamations-${moisRef}`} />,
+        )}
       </div>
 
       {/* ── Promotions ── */}
@@ -453,10 +534,14 @@ export default function OngletComptabilite({ global, franchiseData, franchiseNam
         <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 16px" }}>
           Promotions du mois
         </h3>
-        <Table cols={colsPromos} data={mergedPromos as unknown as Row[]} csvName={`promotions-${moisRef}`} />
-        <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 10 }}>
-          Utilisations totales et revenus totaux sont cumulatifs depuis la création de la promotion, pas limités à {moisLabel.toLowerCase()}.
-        </p>
+        {tableOuFallback(
+          <Table cols={colsPromos} data={mergedPromos as unknown as Row[]} csvName={`promotions-${moisRef}`} />,
+        )}
+        {!rapportMoisIndisponible && (
+          <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 10 }}>
+            Utilisations totales et revenus totaux sont cumulatifs depuis la création de la promotion, pas limités à {moisLabel.toLowerCase()}.
+          </p>
+        )}
       </div>
 
     </div>
