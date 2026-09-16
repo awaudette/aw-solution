@@ -1,0 +1,28 @@
+{
+  "name": "golf-beattie-functions",
+  "private": true,
+  "description": "Cloud Functions du projet Firebase golf-beattie-d5062 — calcule les agrégats analytics et les pousse vers aw-portail (POST /api/sync/analytics). Voir README.md.",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "dry-run": "tsx scripts/dryRun.ts",
+    "envoi-manuel": "tsx scripts/envoiManuel.ts",
+    "verifier-payload": "tsx scripts/verifierPayload.ts",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

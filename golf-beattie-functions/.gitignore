@@ -1,0 +1,20 @@
+# Dépendances / build
+node_modules/
+lib/
+
+# Clés de service — NE JAMAIS committer. La clé golf-beattie-d5062 vit hors du
+# repo, dans C:\Users\alexw\cles\golf-beattie-d5062.json (référencée via la
+# variable d'env GOOGLE_APPLICATION_CREDENTIALS, jamais copiée ici).
+*serviceAccount*.json
+*-adminsdk-*.json
+*service-account*.json
+golf-beattie-d5062*.json
+.env
+.env.*
+
+# Sorties de calcul à blanc (peuvent contenir des données membres réelles)
+*.dry-run.json
+
+# Firebase
+.firebase/
+firebase-debug.log
