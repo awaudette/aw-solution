@@ -95,10 +95,61 @@ function csvEscape(v: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export async function genererRapportPdf(
+/**
+ * Assemble le gabarit HTML à partir des jetons déjà résolus — pure (aucun
+ * accès Firestore/réseau), donc directement testable en local avec des
+ * données réelles OU synthétiques. Voir functions/src/scripts/testerRenduRapport.ts.
+ *
+ * ROW:* est imbriqué dans la branche "présente" de son IF:*_PRESENTES/_VIDE —
+ * renderRows doit donc toujours s'exécuter avant le renderIf correspondant :
+ * sinon, dès que la liste est vide, renderIf a déjà substitué la branche
+ * "vide" (qui ne contient pas le bloc ROW:*) et renderRows ne le trouve plus.
+ * Vaut pour les trois paires ci-dessous (PROMOTION, JOUR_FACTURES, RECLAMATION).
+ */
+export function rendreGabaritRapport(params: {
+  scalaires: Record<string, string>;
+  promotionsRows: Record<string, string>[];
+  promotionsPresentes: boolean;
+  promotionsChampExiste: boolean;
+  joursFactures: Record<string, string>[];
+  facturesPresentes: boolean;
+  reclamationsRows: Record<string, string>[];
+  reclamationsPresentes: boolean;
+  foodCostPresent: boolean;
+  valeurRacheteePresente: boolean;
+}): { html: string; footerHtml: string } {
+  const templateDir = path.join(__dirname, "..", "templates");
+  let html = fs.readFileSync(path.join(templateDir, "rapportMensuel.html"), "utf8");
+  html = renderRows(html, "PROMOTION", params.promotionsRows);
+  html = renderIf(html, "PROMOTIONS_PRESENTES", "PROMOTIONS_VIDE", params.promotionsPresentes);
+  html = stripIfAbsent(html, "SECTION_PROMOTIONS", params.promotionsChampExiste);
+  html = renderRows(html, "JOUR_FACTURES", params.joursFactures);
+  html = renderIf(html, "FACTURES_PRESENTES", "FACTURES_VIDE", params.facturesPresentes);
+  html = renderRows(html, "RECLAMATION", params.reclamationsRows);
+  html = renderIf(html, "RECLAMATIONS_PRESENTES", "RECLAMATIONS_VIDE", params.reclamationsPresentes);
+  html = stripIfAbsent(html, "FOODCOST_COL", params.foodCostPresent);
+  html = stripIfAbsent(html, "VALEUR_RECOMPENSES", params.valeurRacheteePresente);
+  html = stripIfAbsent(html, "COUT_TOTAL", params.valeurRacheteePresente);
+  html = replaceScalars(html, params.scalaires);
+
+  const footerRaw = fs.readFileSync(path.join(templateDir, "rapportMensuelPiedDePage.html"), "utf8");
+  const footerHtml = replaceScalars(footerRaw, {
+    NOM_COMMERCE: params.scalaires.NOM_COMMERCE,
+    COULEUR_ACCENT: params.scalaires.COULEUR_ACCENT,
+  });
+  return { html, footerHtml };
+}
+
+/**
+ * Construit le HTML du rapport (+ pied de page + CSV du détail factures) à
+ * partir des données Firestore réelles — lecture seule, aucune écriture.
+ * Séparé de genererRapportPdf() pour être testable localement (Puppeteer +
+ * Storage exclus) : voir functions/src/scripts/testerRenduRapport.ts.
+ */
+export async function construireRapportHtml(
   clientId: string,
   rapportId: string,
-): Promise<{ pdfUrl: string; facturesCsvUrl: string }> {
+): Promise<{ html: string; footerHtml: string; csvContent: string; facturesMismatchDetecte: boolean }> {
   const db = getFirestore();
   const rapportRef = db.collection("clients").doc(clientId).collection("rapports").doc(rapportId);
   const rapportSnap = await rapportRef.get();
@@ -310,26 +361,33 @@ export async function genererRapportPdf(
   };
 
   // ── Rendu HTML ────────────────────────────────────────────────────────────
-  const templateDir = path.join(__dirname, "..", "templates");
-  let html = fs.readFileSync(path.join(templateDir, "rapportMensuel.html"), "utf8");
-  html = renderIf(html, "PROMOTIONS_PRESENTES", "PROMOTIONS_VIDE", promotions.length > 0);
-  html = renderRows(html, "PROMOTION", promotionsRows);
-  html = stripIfAbsent(html, "SECTION_PROMOTIONS", promotionsChampExiste);
-  html = renderIf(html, "FACTURES_PRESENTES", "FACTURES_VIDE", facturesDetail.length > 0);
-  html = renderRows(html, "JOUR_FACTURES", joursFactures);
-  html = renderIf(html, "RECLAMATIONS_PRESENTES", "RECLAMATIONS_VIDE", reclamationsDetail.length > 0);
-  html = renderRows(html, "RECLAMATION", reclamationsRows);
-  html = stripIfAbsent(html, "FOODCOST_COL", foodCostPresent);
-  html = stripIfAbsent(html, "VALEUR_RECOMPENSES", valeurRacheteePresente);
-  html = stripIfAbsent(html, "COUT_TOTAL", valeurRacheteePresente);
-  html = replaceScalars(html, scalaires);
-
-  const footerRaw = fs.readFileSync(path.join(templateDir, "rapportMensuelPiedDePage.html"), "utf8");
-  const footerHtml = replaceScalars(footerRaw, { NOM_COMMERCE: scalaires.NOM_COMMERCE, COULEUR_ACCENT: scalaires.COULEUR_ACCENT });
+  const { html, footerHtml } = rendreGabaritRapport({
+    scalaires,
+    promotionsRows,
+    promotionsPresentes: promotions.length > 0,
+    promotionsChampExiste,
+    joursFactures,
+    facturesPresentes: facturesDetail.length > 0,
+    reclamationsRows,
+    reclamationsPresentes: reclamationsDetail.length > 0,
+    foodCostPresent,
+    valeurRacheteePresente,
+  });
 
   if (facturesMismatchDetecte) {
     logger.warn(`[genererRapportPdf] Désaccord franchiseNom/facturesDetail détecté pour clients/${clientId}/rapports/${rapportId} — revenus > 0 mais aucune facture filtrée.`);
   }
+
+  return { html, footerHtml, csvContent, facturesMismatchDetecte };
+}
+
+export async function genererRapportPdf(
+  clientId: string,
+  rapportId: string,
+): Promise<{ pdfUrl: string; facturesCsvUrl: string }> {
+  const { html, footerHtml, csvContent } = await construireRapportHtml(clientId, rapportId);
+  const db = getFirestore();
+  const rapportRef = db.collection("clients").doc(clientId).collection("rapports").doc(rapportId);
 
   // ── PDF via Puppeteer + Chromium serverless ──────────────────────────────
   logger.info(`[genererRapportPdf] Lancement Chromium pour clients/${clientId}/rapports/${rapportId}`);
