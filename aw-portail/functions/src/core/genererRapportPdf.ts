@@ -80,6 +80,16 @@ function renderIf(html: string, presentName: string, videName: string, present: 
   const end = Math.max(html.indexOf(p.full) + p.full.length, html.indexOf(v.full) + v.full.length);
   return html.slice(0, start) + (present ? p.inner : v.inner) + html.slice(end);
 }
+function stripIfAbsent(html: string, name: string, present: boolean): string {
+  // Comme renderIf, mais un seul bloc (pas de paire présent/vide) : retire le
+  // bloc entièrement quand la donnée source n'existe pas dans le document
+  // (undefined) plutôt que d'y laisser afficher une valeur fabriquée (0 $,
+  // NaN). `g` global : gère aussi bien une occurrence unique (une ligne de
+  // tableau, une section complète) que plusieurs occurrences du même nom
+  // (ex. une colonne répétée dans l'en-tête ET dans chaque ligne).
+  const re = new RegExp(`<!-- IF:${name} -->([\\s\\S]*?)<!-- /IF:${name} -->`, "g");
+  return html.replace(re, present ? "$1" : "");
+}
 function csvEscape(v: string | number): string {
   const s = String(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -120,6 +130,12 @@ export async function genererRapportPdf(
   // les lignes de cette franchise. Signalé plutôt que laissé comme un tableau
   // vide sans explication.
   let facturesMismatchDetecte = false;
+  // true seulement si le champ `promotions` existe dans le document source
+  // (même vide : []) — distinct d'un tableau vide, qui affiche déjà l'état
+  // "Aucune promotion créée ce mois-ci". Un document plus ancien qui n'a
+  // jamais eu ce champ masque toute la section plutôt que d'afficher un
+  // faux état vide.
+  let promotionsChampExiste = false;
 
   if (franchiseId) {
     // Rapport par franchise : synthese/snapshotFinMois viennent du rapport
@@ -142,7 +158,8 @@ export async function genererRapportPdf(
     const franchiseNomNorm = franchiseNom.trim().toLowerCase();
     facturesDetail = globalCompta ? globalCompta.facturesDetail.filter((f) => f.franchise.trim().toLowerCase() === franchiseNomNorm) : [];
     reclamationsDetail = globalCompta ? globalCompta.reclamationsDetail.filter((r) => r.franchise.trim().toLowerCase() === franchiseNomNorm) : [];
-    promotions = globalCompta ? globalCompta.promotions : [];
+    promotionsChampExiste = !!globalCompta && globalCompta.promotions !== undefined;
+    promotions = globalCompta ? (globalCompta.promotions ?? []) : [];
 
     // synthese.revenus > 0 = cette franchise a bel et bien eu des ventes ce
     // mois-ci (chiffre déjà scopé, fiable) ; facturesDetail vide malgré ça =
@@ -152,7 +169,8 @@ export async function genererRapportPdf(
     const compta = rapport.donnees as Comptabilite;
     facturesDetail = compta.facturesDetail;
     reclamationsDetail = compta.reclamationsDetail;
-    promotions = compta.promotions;
+    promotionsChampExiste = compta.promotions !== undefined;
+    promotions = compta.promotions ?? [];
     synthese = compta.synthese;
     snapshotFinMois = compta.snapshotFinMois;
   }
@@ -174,12 +192,22 @@ export async function genererRapportPdf(
   }
 
   // ── Résumé (section 1) ───────────────────────────────────────────────────
+  // Documents antérieurs à l'ajout de ces champs : présents dans le type
+  // TS (donc supposés là par le compilateur) mais potentiellement absents du
+  // document Firestore réel. Détecté ici plutôt que laissé produire un $0/NaN
+  // silencieux plus loin — voir stripIfAbsent().
+  const valeurRacheteePresente = typeof synthese.valeurRachetee === "number" && !Number.isNaN(synthese.valeurRachetee);
+  const foodCostPresent = reclamationsDetail.every((r) => typeof r.foodCost === "number" && !Number.isNaN(r.foodCost));
+
   const pointsBonus = synthese.valeurBonus;
   const pointsFactures = synthese.pointsDistribues - synthese.valeurBonus;
   const valeurPointsAccordes = (synthese.pointsDistribues / 100) * tauxConversion;
   const rabaisAccordes = facturesDetail.reduce((s, f) => s + (f.rabaisApplique ?? 0), 0);
   const coutRabais = promotions.reduce((s, p) => s + (p.coutReel ?? 0), 0);
-  const coutTotalProgramme = synthese.valeurRachetee + coutRabais;
+  // Sans valeurRachetee, "coût total du programme" ne serait qu'un sous-total
+  // partiel présenté comme un total — undefined masque toute la ligne au lieu
+  // d'afficher un chiffre trompeur.
+  const coutTotalProgramme = valeurRacheteePresente ? synthese.valeurRachetee + coutRabais : undefined;
 
   // ── Registre de points (section 3) ──────────────────────────────────────
   const tauxRachatPct = synthese.tauxRachat ?? (synthese.pointsDistribues > 0
@@ -225,7 +253,7 @@ export async function genererRapportPdf(
     reclamation_recompense: r.recompense,
     reclamation_franchise: r.franchise,
     reclamation_points: fmtNombre(r.pointsReclames),
-    reclamation_cout: fmtArgent(r.foodCost),
+    reclamation_cout: typeof r.foodCost === "number" && !Number.isNaN(r.foodCost) ? fmtArgent(r.foodCost) : "",
   }));
 
   // ── CSV séparé (détail facture par facture, format machine) ─────────────
@@ -258,10 +286,10 @@ export async function genererRapportPdf(
     RESUME_VALEUR_POINTS: fmtArgent(valeurPointsAccordes),
     RESUME_POINTS_RECLAMES: fmtNombre(synthese.pointsRachetes),
     RESUME_NB_RECOMPENSES: fmtNombre(reclamationsDetail.length),
-    RESUME_VALEUR_RECOMPENSES: fmtArgent(synthese.valeurRachetee),
+    RESUME_VALEUR_RECOMPENSES: valeurRacheteePresente ? fmtArgent(synthese.valeurRachetee) : "",
     RESUME_RABAIS_ACCORDES: fmtArgent(rabaisAccordes),
     RESUME_COUT_RABAIS: fmtArgent(coutRabais),
-    RESUME_COUT_TOTAL: fmtArgent(coutTotalProgramme),
+    RESUME_COUT_TOTAL: coutTotalProgramme !== undefined ? fmtArgent(coutTotalProgramme) : "",
 
     PROMOTIONS_PORTEE_NOTE: promotionsPorteeNote,
 
@@ -286,10 +314,14 @@ export async function genererRapportPdf(
   let html = fs.readFileSync(path.join(templateDir, "rapportMensuel.html"), "utf8");
   html = renderIf(html, "PROMOTIONS_PRESENTES", "PROMOTIONS_VIDE", promotions.length > 0);
   html = renderRows(html, "PROMOTION", promotionsRows);
+  html = stripIfAbsent(html, "SECTION_PROMOTIONS", promotionsChampExiste);
   html = renderIf(html, "FACTURES_PRESENTES", "FACTURES_VIDE", facturesDetail.length > 0);
   html = renderRows(html, "JOUR_FACTURES", joursFactures);
   html = renderIf(html, "RECLAMATIONS_PRESENTES", "RECLAMATIONS_VIDE", reclamationsDetail.length > 0);
   html = renderRows(html, "RECLAMATION", reclamationsRows);
+  html = stripIfAbsent(html, "FOODCOST_COL", foodCostPresent);
+  html = stripIfAbsent(html, "VALEUR_RECOMPENSES", valeurRacheteePresente);
+  html = stripIfAbsent(html, "COUT_TOTAL", valeurRacheteePresente);
   html = replaceScalars(html, scalaires);
 
   const footerRaw = fs.readFileSync(path.join(templateDir, "rapportMensuelPiedDePage.html"), "utf8");

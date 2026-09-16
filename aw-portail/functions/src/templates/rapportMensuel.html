@@ -243,15 +243,20 @@
         <tr><td>Valeur des points accordés</td><td>{{RESUME_VALEUR_POINTS}}</td></tr>
         <tr><td>Points réclamés</td><td>{{RESUME_POINTS_RECLAMES}}</td></tr>
         <tr><td>Récompenses utilisées</td><td>{{RESUME_NB_RECOMPENSES}}</td></tr>
+        <!-- IF:VALEUR_RECOMPENSES -->
         <tr><td>Valeur des récompenses</td><td>{{RESUME_VALEUR_RECOMPENSES}}</td></tr>
+        <!-- /IF:VALEUR_RECOMPENSES -->
         <tr><td>Rabais accordés</td><td>{{RESUME_RABAIS_ACCORDES}}</td></tr>
         <tr><td>Coût des rabais accordés</td><td>{{RESUME_COUT_RABAIS}}</td></tr>
+        <!-- IF:COUT_TOTAL -->
         <tr class="ligne-total"><td>Coût total du programme</td><td>{{RESUME_COUT_TOTAL}}</td></tr>
+        <!-- /IF:COUT_TOTAL -->
       </tbody>
     </table>
     <p class="footnote">Valeur des points calculée selon un taux de conversion de {{TAUX_CONVERSION}} $ par tranche de 100 points.</p>
   </section>
 
+  <!-- IF:SECTION_PROMOTIONS -->
   <section class="rapport-section">
     <p class="section-eyebrow">Section 02</p>
     <h2 class="section-titre">Promotions du mois</h2>
@@ -284,6 +289,7 @@
     <p class="etat-vide">Aucune promotion créée ce mois-ci</p>
     <!-- /IF:PROMOTIONS_VIDE -->
   </section>
+  <!-- /IF:SECTION_PROMOTIONS -->
 
   <section class="rapport-section">
     <p class="section-eyebrow">Section 03</p>
@@ -349,7 +355,7 @@
           <th>Récompense</th>
           <th>Franchise</th>
           <th class="num">Points réclamés</th>
-          <th class="num">Coût réel</th>
+          <!-- IF:FOODCOST_COL --><th class="num">Coût réel</th><!-- /IF:FOODCOST_COL -->
         </tr>
       </thead>
       <tbody>
@@ -359,7 +365,7 @@
           <td>{{reclamation_recompense}}</td>
           <td>{{reclamation_franchise}}</td>
           <td class="num">{{reclamation_points}}</td>
-          <td class="num">{{reclamation_cout}}</td>
+          <!-- IF:FOODCOST_COL --><td class="num">{{reclamation_cout}}</td><!-- /IF:FOODCOST_COL -->
         </tr>
         <!-- /ROW:RECLAMATION -->
       </tbody>
