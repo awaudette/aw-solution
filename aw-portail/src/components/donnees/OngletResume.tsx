@@ -42,6 +42,13 @@ function variationDisplay(ratio: number): VariationDisplay {
   return { color: varColor(ratio), text: `${varArrow(ratio)} ${varText(ratio)}` };
 }
 
+/** Ratio de variation entre deux totaux mensuels réels (contrairement aux
+ *  variations.* de PeriodeStandard, calculées côté CF sur une fenêtre glissante). */
+function ratioMensuel(actuel: number, precedent: number): number {
+  if (precedent === 0) return actuel === 0 ? 0 : 1;
+  return (actuel - precedent) / precedent;
+}
+
 // ─── Titre de section ─────────────────────────────────────────────────────────
 function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
   return (
@@ -124,20 +131,41 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
-  // ── Noms des deux derniers mois complets (dynamiques) ─────────────────────
-  const lastM = dm - 1 === 0 ? 12 : dm - 1;
-  const lastY = dm - 1 === 0 ? dy - 1 : dy;
-  const prevM = lastM - 1 === 0 ? 12 : lastM - 1;
-  const prevY = lastM - 1 === 0 ? lastY - 1 : lastY;
-  const fmtMois = (y: number, m: number) =>
-    new Date(y, m - 1, 1).toLocaleDateString("fr-CA", { month: "long", year: "numeric" });
-  const labelMoisA = fmtMois(lastY, lastM); // "juillet 2026"
-  const labelMoisB = fmtMois(prevY, prevM); // "juin 2026"
-  const varSub = `${labelMoisA.charAt(0).toUpperCase() + labelMoisA.slice(1)} vs ${labelMoisB}`;
+  // ── Deux derniers mois complets — vrais totaux (seriesMensuelles), jamais
+  //     la fenêtre glissante 30j. Le sous-titre est dérivé des mois réellement
+  //     trouvés dans la série, pas d'une hypothèse de calendrier (dm-1/dm-2) —
+  //     s'accorde donc toujours avec les valeurs affichées, même si un mois
+  //     manque dans la série. ─────────────────────────────────────────────────
+  const seriesMens = [...(franchiseData?.aVie.seriesMensuelles ?? global.aVie.seriesMensuelles)]
+    .sort((a, b) => a.mois.localeCompare(b.mois));
+  const moisA = seriesMens[seriesMens.length - 1] ?? null; // mois le plus récent
+  const moisB = seriesMens[seriesMens.length - 2] ?? null; // mois précédent
+  const fmtMois = (moisStr: string) => {
+    const [y, m] = moisStr.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("fr-CA", { month: "long", year: "numeric" });
+  };
+  const labelMoisA = moisA ? fmtMois(moisA.mois) : "";
+  const labelMoisB = moisB ? fmtMois(moisB.mois) : "";
+  const varSub = moisA && moisB
+    ? `${labelMoisA.charAt(0).toUpperCase() + labelMoisA.slice(1)} vs ${labelMoisB}`
+    : "Historique insuffisant";
 
   // ── Séries : franchise si sélectionnée, sinon global ─────────────────────
   const seriesChart = franchiseData?.["30j"].series ?? p30.series;
   const achalandage = franchiseData?.achalandage ?? global.achalandage;
+
+  // ── Plage affichée du graphique 30j — dérivée de la série elle-même,
+  //     jamais une plage écrite en dur (qui se désynchronise dès que
+  //     dateDonnees avance). ────────────────────────────────────────────────
+  const fmtJourMois = (dateStr: string, avecAnnee: boolean) => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("fr-CA", {
+      day: "numeric", month: "short", ...(avecAnnee ? { year: "numeric" as const } : {}),
+    });
+  };
+  const rangeLabel30j = seriesChart.length > 0
+    ? `${fmtJourMois(seriesChart[0].date, false)} – ${fmtJourMois(seriesChart[seriesChart.length - 1].date, true)}`
+    : "";
 
   // ── Graphique 1 : Visites & revenus 30j ──────────────────────────────────
   const labels30 = seriesChart.map((s) => s.date.split("-")[2]);
@@ -194,8 +222,6 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
     .sort((a, b) => ({ critique: 0, attention: 1, positive: 2 }[a.severite] - { critique: 0, attention: 1, positive: 2 }[b.severite]))
     .slice(0, 3);
 
-  const variations = p30v.variations;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
 
@@ -248,40 +274,30 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
       <section>
         <SectionTitle sub={varSub}>Variations — 2 derniers mois</SectionTitle>
         <div style={CARD}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-            {([
-              ["Revenus", variationDisplay(variations.revenus), fmtArgent(p30v.revenus)],
-              ["Ventes",  variationDisplay(variations.ventes),  fmtNombre(p30v.ventes)],
-            ] as [string, VariationDisplay, string][]).map(([lbl, disp, val]) => (
-              <div key={lbl} style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{val}</div>
-                <div style={{ fontSize: 13, color: disp.color, fontWeight: 600, marginTop: 4 }}>
-                  {disp.text}
-                </div>
-                <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>{lbl}</div>
-              </div>
-            ))}
-            {/* Membres actifs : décompte seul, sans variation. lastAppOpenAt ne garde
-                que la dernière ouverture de chaque membre — un décompte sur une fenêtre
-                passée sous-compte massivement, donc aucune variation fiable n'est
-                calculable. Le décompte lui-même reste juste. */}
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{fmtNombre(p30v.membresActifs)}</div>
-              <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Membres actifs</div>
-            </div>
-            {(() => {
-              const disp = variationDisplay(variations.panierMoyen);
-              return (
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{fmtArgent(p30v.panierMoyen)}</div>
+          {moisA && moisB ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+              {/* Seuls Revenus et Visites ont un vrai total mensuel (seriesMensuelles) —
+                  Ventes/Panier moyen/Membres actifs n'existent que sur la fenêtre
+                  glissante 30j (variations.*), qui ne correspond à aucun mois précis
+                  et n'est donc pas comparable ici. */}
+              {([
+                ["Revenus", variationDisplay(ratioMensuel(moisA.revenus, moisB.revenus)), fmtArgent(moisA.revenus)],
+                ["Visites", variationDisplay(ratioMensuel(moisA.visites, moisB.visites)), fmtNombre(moisA.visites)],
+              ] as [string, VariationDisplay, string][]).map(([lbl, disp, val]) => (
+                <div key={lbl} style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{val}</div>
                   <div style={{ fontSize: 13, color: disp.color, fontWeight: 600, marginTop: 4 }}>
                     {disp.text}
                   </div>
-                  <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Panier moyen</div>
+                  <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>{lbl}</div>
                 </div>
-              );
-            })()}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0, textAlign: "center" }}>
+              Pas encore deux mois complets de données pour calculer une variation.
+            </p>
+          )}
         </div>
       </section>
 
@@ -302,7 +318,7 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
               <div>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: "#111827", margin: 0 }}>Visites &amp; revenus — 30 jours</h3>
-                <p style={{ fontSize: 12, color: "#9CA3AF", margin: "4px 0 0" }}>15 juil. – 14 août 2026</p>
+                <p style={{ fontSize: 12, color: "#9CA3AF", margin: "4px 0 0" }}>{rangeLabel30j}</p>
               </div>
               <div style={{ display: "flex", gap: 16 }}>
                 {[

@@ -183,13 +183,16 @@ function BlocSynthese({
   snapshot:       SnapshotShape;
   dernierJour:    string;
   moisLabel:      string;
-  scopeLabel:     string;
+  /** Absent pour un client sans franchises multiples — le bouton d'export
+   *  affiche alors "Exporter le rapport" seul, sans suffixe de portée. */
+  scopeLabel?:    string;
   /** PDF déjà généré par la Cloud Function genererRapportPdf — jamais généré
    *  au clic (Vercel Hobby coupe à 10 s, Puppeteer en prend 10-15 rien qu'au
    *  démarrage de Chromium). Absent tant que la clôture du mois n'a pas eu lieu. */
   pdfUrl?:        string;
   facturesCsvUrl?: string;
 }) {
+  const exportLabel = scopeLabel ? `Exporter le rapport — ${scopeLabel}` : "Exporter le rapport";
   return (
     <div style={CARD}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -207,7 +210,7 @@ function BlocSynthese({
               padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
               background: "#2a78d6", color: "white", textDecoration: "none", display: "inline-block",
             }}>
-              ↓ Exporter le rapport — {scopeLabel}
+              ↓ {exportLabel}
             </a>
           ) : (
             <button
@@ -218,7 +221,7 @@ function BlocSynthese({
                 background: "#E5E7EB", color: "#9CA3AF", border: "none", cursor: "not-allowed",
               }}
             >
-              ↓ Exporter le rapport — {scopeLabel}
+              ↓ {exportLabel}
             </button>
           )}
         </div>
@@ -230,7 +233,12 @@ function BlocSynthese({
           ["Revenus",            fmtArgent(synthese.revenus),            ""],
           ["Inscriptions",      fmtNombre(synthese.inscriptions),       "nouveaux membres"],
           ["Membres actifs",    fmtNombre(synthese.membresActifs),       `/ ${fmtNombre(synthese.membresTotal)} total`],
-          ["Notif. envoyées",   fmtNombre(synthese.notifEnvoyees),       `${fmtPct(synthese.tauxOuverturePush)} ouverture`],
+          // % ouverture masqué si tauxOuverturePush n'est pas encore poussé par la CF
+          // cliente, ou si 0 % / 0 notification — une valeur nulle sans aucun envoi
+          // n'est pas un taux d'ouverture mesuré, juste une absence de donnée.
+          ["Notif. envoyées",   fmtNombre(synthese.notifEnvoyees),
+            synthese.tauxOuverturePush == null || (synthese.tauxOuverturePush === 0 && synthese.notifEnvoyees === 0)
+              ? "" : `${fmtPct(synthese.tauxOuverturePush)} ouverture`],
           ["Visites", fmtNombre(synthese.visites),    ""],
           ["Points distribués", fmtNombre(synthese.pointsDistribues),    ""],
           ["Points rachetés",   fmtNombre(synthese.pointsRachetes),      synthese.valeurRachetee != null ? `${fmtArgent(synthese.valeurRachetee)} food cost` : ""],
@@ -279,7 +287,12 @@ interface Props {
   client:        ClientData;
 }
 
-export default function OngletComptabilite({ franchiseData, franchiseName, rapports, client }: Props) {
+export default function OngletComptabilite({ franchises, franchiseData, franchiseName, rapports, client }: Props) {
+  // Client sans franchises multiples (une seule succursale) — aucun sélecteur
+  // affiché nulle part dans le portail (voir page.tsx / AdminDonneesViewer.tsx,
+  // `franchises.length > 1`) donc aucune raison d'afficher un libellé ou une
+  // colonne "Franchise" ici non plus.
+  const isMultiFranchise = franchises.length > 1;
   const moisList = useMemo(() => buildMoisList(client.dateLancement), [client.dateLancement]);
   const [moisRef, setMoisRef] = useState(moisList[0].value);
 
@@ -409,21 +422,33 @@ export default function OngletComptabilite({ franchiseData, franchiseName, rappo
   }
 
   // ── Colonnes ──────────────────────────────────────────────────────────────
+  // Colonne "Franchise" masquée pour un client sans franchises multiples — voir
+  // isMultiFranchise. Code promo/Promotion liée/Rabais appliqué/Food cost masqués
+  // entièrement si aucune ligne du mois n'a la donnée (même logique que les
+  // colonnes de colsPromos ci-dessous), plutôt que remplis de tirets partout.
+  const factureCodePromoDisponible     = factures.some((f) => typeof f.codePromo === "string");
+  const facturePromotionLieeDisponible = factures.some((f) => typeof f.promotionLiee === "string");
+  const factureRabaisDisponible        = factures.some((f) => typeof f.rabaisApplique === "number");
+  const reclamFoodCostDisponible       = reclams.some((r) => typeof r.foodCost === "number");
   const colsFactures: ColDef[] = [
     { header: "Date",             key: "date"                                                                          },
-    { header: "Franchise",        key: "franchise"                                                                     },
+    ...(isMultiFranchise ? [{ header: "Franchise", key: "franchise" }] as ColDef[] : []),
     { header: "Montant",          key: "montant",          fmt: (v) => fmtArgent(v as number),                align: "right" },
     { header: "Points attribués", key: "pointsAttribues",  fmt: (v) => fmtNombre(v as number),               align: "right" },
-    { header: "Code promo",       key: "codePromo",        fmt: (v) => String(v ?? "—")                               },
-    { header: "Promotion liée",   key: "promotionLiee",    fmt: (v) => String(v ?? "—")                               },
-    { header: "Rabais appliqué",  key: "rabaisApplique",   fmt: (v) => v != null ? fmtArgent(v as number) : "—", align: "right" },
+    ...(factureCodePromoDisponible ? [{ header: "Code promo", key: "codePromo",
+      fmt: (v) => String(v ?? "—") } as ColDef] : []),
+    ...(facturePromotionLieeDisponible ? [{ header: "Promotion liée", key: "promotionLiee",
+      fmt: (v) => String(v ?? "—") } as ColDef] : []),
+    ...(factureRabaisDisponible ? [{ header: "Rabais appliqué", key: "rabaisApplique",
+      fmt: (v) => v != null ? fmtArgent(v as number) : "—", align: "right" } as ColDef] : []),
   ];
   const colsReclam: ColDef[] = [
     { header: "Date",            key: "date"                                                      },
     { header: "Récompense",      key: "recompense"                                                },
-    { header: "Franchise",       key: "franchise"                                                 },
+    ...(isMultiFranchise ? [{ header: "Franchise", key: "franchise" }] as ColDef[] : []),
     { header: "Points réclamés", key: "pointsReclames", fmt: (v) => fmtNombre(v as number), align: "right" },
-    { header: "Food cost",       key: "foodCost",       fmt: (v) => fmtArgent(v as number), align: "right" },
+    ...(reclamFoodCostDisponible ? [{ header: "Food cost", key: "foodCost",
+      fmt: (v) => v != null ? fmtArgent(v as number) : "—", align: "right" } as ColDef] : []),
   ];
   // Pas de ROI ni de Val. distribuée : ces colonnes sont retirées de l'affichage
   // (gardées dans MergedPromo/l'export Excel). Coût réel à 0 $ affiché en tiret
@@ -503,7 +528,7 @@ export default function OngletComptabilite({ franchiseData, franchiseName, rappo
           snapshot={snapshot}
           dernierJour={dernierJour}
           moisLabel={moisLabel}
-          scopeLabel={franchiseName}
+          scopeLabel={isMultiFranchise ? franchiseName : undefined}
           pdfUrl={rapportCourant?.pdfUrl}
           facturesCsvUrl={rapportCourant?.facturesCsvUrl}
         />

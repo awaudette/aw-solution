@@ -193,7 +193,7 @@ const comptabiliteCodePromo: Spec = { object: {
 } };
 
 const comptabiliteReclamation: Spec = { object: {
-  date: "string", recompense: "string", pointsReclames: "number", foodCost: "number", franchise: "string",
+  date: "string", recompense: "string", pointsReclames: "number", foodCost: { optional: "number" }, franchise: "string",
 } };
 
 const comptabilitePromotion: Spec = { object: {
@@ -206,7 +206,7 @@ const comptabilitePromotion: Spec = { object: {
 
 const syntheseComptable: Spec = { object: {
   inscriptions: "number", revenus: "number", membresActifs: "number", membresTotal: "number",
-  notifEnvoyees: "number", tauxOuverturePush: "number", visites: "number",
+  notifEnvoyees: "number", tauxOuverturePush: { optional: "number" }, visites: "number",
   pointsDistribues: "number",
   pointsDistribuesFactures: { optional: "number" }, pointsDistribuesBonus: { optional: "number" },
   pointsRachetes: "number", valeurRachetee: { optional: "number" },

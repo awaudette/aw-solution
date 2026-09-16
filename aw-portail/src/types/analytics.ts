@@ -303,7 +303,8 @@ export interface ComptabiliteReclamation {
   date:          string;
   recompense:    string;
   pointsReclames:number;
-  foodCost:      number;
+  /** Absent chez les clients dont la CF ne calcule pas encore le food cost des rachats. */
+  foodCost?:     number;
   franchise:     string;
 }
 
@@ -349,7 +350,8 @@ export interface ComptabiliteFranchise {
     membresActifs:     number; // Phase 3 — portailSyncJob
     membresTotal:      number; // Phase 3 — portailSyncJob
     notifEnvoyees:     number; // Phase 3 — portailSyncJob
-    tauxOuverturePush: number; // Phase 3 — portailSyncJob
+    /** Absent chez les clients dont la CF ne calcule pas encore de taux d'ouverture push. */
+    tauxOuverturePush?: number; // Phase 3 — portailSyncJob
     visites:           number; // Phase 3 — portailSyncJob
     pointsDistribues:  number; // Phase 3 — portailSyncJob
     /** Détail factures/bonus du total pointsDistribues ci-dessus — absent chez les
@@ -385,7 +387,8 @@ export interface Comptabilite {
     membresActifs:     number;
     membresTotal:      number;
     notifEnvoyees:     number;
-    tauxOuverturePush: number;
+    /** Absent chez les clients dont la CF ne calcule pas encore de taux d'ouverture push. */
+    tauxOuverturePush?: number;
     visites:           number;
     pointsDistribues:  number;
     /** Détail factures/bonus du total pointsDistribues ci-dessus — absent chez les
