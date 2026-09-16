@@ -17,22 +17,25 @@
  * "depuis le lancement" = TOUT l'historique des 4 collections, aucun plancher
  * de date appliqué ni à la requête Firestore ni à l'agrégation (demandé par
  * Alex pour matcher le tableau de bord de l'app, ex. 286 factures / 45 664 $).
- * FACTURES_FLOOR (2026-05-01) reste exporté mais n'est plus utilisé ici — il
- * est réservé à la génération des rapports mensuels côté aw-portail (premier
- * rapport : mai 2026), hors scope de ce calcul.
+ * DEBUT_RAPPORTS (2026-05-01, ex-FACTURES_FLOOR) sert de plancher pour
+ * seriesMensuelles et pour la moyenne d'achalandage par jour de semaine
+ * (premier mois complet de saison pour le golf) — n'affecte PAS les totaux
+ * aVie ci-dessus, ni churnMoyenMensuel/tauxVisiteMoyenMensuel (bornés à
+ * DATE_LANCEMENT, inchangé).
  *
  * Portée volontairement limitée à ce qu'Alex a demandé — tout le reste du
  * contrat src/types/analytics.ts (aw-portail) n'est PAS calculé ici :
- * promotions (aucune collection de clics/conversions/revenus attribués côté
- * golf — exclusion explicite d'Alex), taux d'ouverture des notifications
- * (aucune donnée d'ouverture dans ff_push_notifications /
+ * promotions détaillées / clics / conversions (aucune collection de ce type
+ * côté golf — voir recompensesActives/promosActives ci-dessous pour les deux
+ * compteurs simples qui, eux, sont calculés), taux d'ouverture des
+ * notifications (aucune donnée d'ouverture dans ff_push_notifications /
  * ff_user_push_notifications — ces collections ne donnent que le nombre
  * d'envois et de destinataires, pas d'ouverture). Voir README.md.
  */
 import type { Firestore, DocumentData, QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { torontoDateString, shiftDateStr, torontoWeekday, torontoHour } from "./dateToronto";
+import { torontoDateString, shiftDateStr, torontoWeekday, torontoHour, torontoMidnightUTC } from "./dateToronto";
 
-export const FACTURES_FLOOR = "2026-05-01"; // réservé aux rapports mensuels (aw-portail) — PAS appliqué ici
+export const DEBUT_RAPPORTS = "2026-05-01"; // premier mois complet de saison — plancher seriesMensuelles + achalandage
 export const DATE_LANCEMENT = "2025-12-08"; // date de lancement du programme — exposée dans le résultat, ne borne plus les requêtes
 const AUCUNE_BORNE = "0000-01-01"; // debut pour "depuis le lancement" : aucun plancher, tout l'historique
 
@@ -106,8 +109,10 @@ export interface ResultatCalculAnalytics {
   churnMoyenMensuel: number;      // moyenne des taux de churn mensuels, EN SAISON seulement
   tauxVisiteMoyenMensuel: number; // moyenne des (membresActifs du mois / membresTotal fin de mois), EN SAISON seulement
   moisSaisonInclus: string[];     // mois "YYYY-MM" effectivement utilisés pour les 3 métriques ci-dessus
-  seriesMensuelles: SerieMensuelle[]; // un point par mois calendaire complet depuis le lancement (TOUS les mois, pas seulement la saison)
+  seriesMensuelles: SerieMensuelle[]; // un point par mois calendaire complet depuis DEBUT_RAPPORTS (2026-05)
   notifications: NotificationsCalcul;
+  recompensesActives: number; // recompenses[].actif === true && !isDeletedLogical, snapshot ACTUEL
+  promosActives: number;      // Promotions[].Actif === true && aujourd'hui (Toronto) ∈ [Date_debut, Date_fin]
   avertissements: string[];
 }
 
@@ -117,6 +122,9 @@ export interface ReclamationAgg { jour: string; nomRecompense: string; pointsUti
 
 /** Un élément par document d'envoi (ff_push_notifications + ff_user_push_notifications). */
 export interface PushAgg { jour: string }
+
+/** Une Promotion brute (collection "Promotions") — dates déjà résolues en "YYYY-MM-DD" Toronto. */
+export interface PromoAgg { actif: boolean; debut: string; fin: string }
 
 function refUid(ref: unknown, warnings: string[], contexte: string): string | null {
   const r = ref as { id?: string } | undefined;
@@ -173,6 +181,8 @@ export interface DonneesBrutes {
   ventesBrutDepuisLancement: number;
   revenusBrutDepuisLancement: number;
   pointsFacturesBrutDepuisLancement: number;
+  recompensesActives: number;      // collection "recompenses" — snapshot ACTUEL, indépendant de "maintenant"
+  promotions: PromoAgg[];          // collection "Promotions" — brut, filtré par date dans calculerDepuisBruts (a besoin de "maintenant")
   warnings: string[];
 }
 
@@ -180,13 +190,15 @@ export async function chargerDonneesBrutes(db: Firestore): Promise<DonneesBrutes
   const warnings: string[] = [];
 
   // ── Lecture (aucune écriture) — aucun filtre de date : tout l'historique ──
-  const [facturesSnap, tirageSnap, utilisateursSnap, reclamationsSnap, pushGlobalSnap, pushCibleSnap] = await Promise.all([
+  const [facturesSnap, tirageSnap, utilisateursSnap, reclamationsSnap, pushGlobalSnap, pushCibleSnap, recompensesSnap, promotionsSnap] = await Promise.all([
     db.collection("factures").get(),
     db.collection("Tirage").get(),
     db.collection("utilisateurs").get(),
     db.collection("Recompenses_reclamees").get(),
     db.collection("ff_push_notifications").get(),
     db.collection("ff_user_push_notifications").get(),
+    db.collection("recompenses").get(),
+    db.collection("Promotions").get(),
   ]);
 
   // ── Normalisation ─────────────────────────────────────────────────────────
@@ -260,9 +272,29 @@ export async function chargerDonneesBrutes(db: Firestore): Promise<DonneesBrutes
     });
   }
 
+  // recompensesActives : snapshot ACTUEL (indépendant de "maintenant") — actif === true ET
+  // pas de soft-delete. isDeletedLogical absent (docs plus anciens) = traité comme "pas supprimé".
+  let recompensesActives = 0;
+  recompensesSnap.forEach((d: QueryDocumentSnapshot<DocumentData>) => {
+    const data = d.data();
+    if (data.actif === true && data.isDeletedLogical !== true) recompensesActives += 1;
+  });
+
+  // promotions : brut seulement ici — le filtre "date du jour ∈ [Date_debut, Date_fin]" a besoin
+  // de "maintenant", fourni uniquement à calculerDepuisBruts.
+  const promotions: PromoAgg[] = [];
+  promotionsSnap.forEach((d: QueryDocumentSnapshot<DocumentData>) => {
+    const data = d.data();
+    const debutTs = data.Date_debut?.toDate?.();
+    const finTs = data.Date_fin?.toDate?.();
+    if (!debutTs || !finTs) { warnings.push(`Promotions/${d.id} : Date_debut/Date_fin absente — exclue de promosActives`); return; }
+    promotions.push({ actif: data.Actif === true, debut: torontoDateString(debutTs), fin: torontoDateString(finTs) });
+  });
+
   return {
     factures, tirages, reclamations, uidCreated, pointsEnCirculation, membresTotal, pushs,
     ventesBrutDepuisLancement, revenusBrutDepuisLancement, pointsFacturesBrutDepuisLancement,
+    recompensesActives, promotions,
     warnings,
   };
 }
@@ -320,7 +352,8 @@ export function agregerPeriodeBrute(bruts: Pick<DonneesBrutes, "factures" | "tir
 export function calculerDepuisBruts(bruts: DonneesBrutes, maintenant: Date): ResultatCalculAnalytics {
   const warnings: string[] = [...bruts.warnings];
   const { factures, tirages, uidCreated, pointsEnCirculation, membresTotal, pushs,
-    ventesBrutDepuisLancement, revenusBrutDepuisLancement, pointsFacturesBrutDepuisLancement } = bruts;
+    ventesBrutDepuisLancement, revenusBrutDepuisLancement, pointsFacturesBrutDepuisLancement,
+    recompensesActives, promotions } = bruts;
 
   const aujourdHui = torontoDateString(maintenant);
   const hier = shiftDateStr(aujourdHui, -1);
@@ -328,27 +361,58 @@ export function calculerDepuisBruts(bruts: DonneesBrutes, maintenant: Date): Res
 
   const agregerPeriode = (debut: string, fin: string) => agregerPeriodeBrute(bruts, debut, fin);
 
-  // ── Achalandage (jour de semaine × plage horaire) — tout l'historique ────
-  // Une "visite" = 1re facture du jour pour un uid donné (même règle que "visites" ci-dessous).
+  // ── promosActives : Actif === true ET aujourd'hui (Toronto) ∈ [Date_debut, Date_fin] ──
+  const promosActives = promotions.filter((p) => p.actif && p.debut <= aujourdHui && aujourdHui <= p.fin).length;
+
+  // ── Achalandage (jour de semaine) — MOYENNE de visites par jour de semaine,
+  // jours de saison seulement, depuis DEBUT_RAPPORTS jusqu'à hier inclus.
+  // Bug précédent : parJour sommait TOUT l'historique des factures (aucun
+  // plancher, hors saison inclus) sous le libellé "visites moyennes par jour
+  // de semaine" côté portail — 25 à 51 "visites" par jour de semaine n'était
+  // donc pas une moyenne mais un total cumulé sur ~9 mois (la somme des 7
+  // jours = 261, exactement depuisLancement.visites) ; retirer 2 factures
+  // d'octobre (hors saison) ne changeait presque rien à des sommes bâties sur
+  // ~18 semaines de saison. Fix : diviser le total de chaque jour de semaine
+  // par son nombre d'occurrences dans la même fenêtre (saison, depuis
+  // DEBUT_RAPPORTS). "Visite" = 1re facture du jour pour un uid, jamais Tirage.
+  const finAchalandage = hier;
+  const facturesAchalandage = factures.filter((f) =>
+    f.jour >= DEBUT_RAPPORTS && f.jour <= finAchalandage && estMoisSaison(moisKey(f.jour)));
   const visiteTs = new Map<string, Date>();
-  factures.forEach((f) => {
+  facturesAchalandage.forEach((f) => {
     const key = `${f.uid}_${f.jour}`;
     const existant = visiteTs.get(key);
     if (!existant || f.ts < existant) visiteTs.set(key, f.ts);
   });
-  const parJourMap = new Map<string, number>();
+  const visitesParJourMap = new Map<string, number>();
   const parPlageMap = new Map<string, number>();
   visiteTs.forEach((ts, key) => {
     const jourSemaine = torontoWeekday(ts);
-    parJourMap.set(jourSemaine, (parJourMap.get(jourSemaine) ?? 0) + 1);
+    visitesParJourMap.set(jourSemaine, (visitesParJourMap.get(jourSemaine) ?? 0) + 1);
     const heure = torontoHour(ts);
     const plage = PLAGES.find((p) => heure >= p.min && heure < p.max);
     if (!plage) { warnings.push(`achalandage : visite ${key} à ${heure} h — hors plages 7 h–21 h, exclue de parPlage`); return; }
     const pKey = `${jourSemaine}|${plage.label}`;
     parPlageMap.set(pKey, (parPlageMap.get(pKey) ?? 0) + 1);
   });
+  // Dénominateur : nb d'occurrences de chaque jour de semaine, jours de saison
+  // seulement, dans la même fenêtre [DEBUT_RAPPORTS, hier] — indépendant des visites réelles.
+  const occurrencesParJour = new Map<string, number>();
+  if (DEBUT_RAPPORTS <= finAchalandage) {
+    for (let j = DEBUT_RAPPORTS; j <= finAchalandage; j = shiftDateStr(j, 1)) {
+      if (!estMoisSaison(moisKey(j))) continue;
+      const jourSemaine = torontoWeekday(torontoMidnightUTC(j));
+      occurrencesParJour.set(jourSemaine, (occurrencesParJour.get(jourSemaine) ?? 0) + 1);
+    }
+  } else {
+    warnings.push("achalandage : DEBUT_RAPPORTS est après hier — aucune moyenne calculable, parJour à 0");
+  }
   const achalandage: Achalandage = {
-    parJour: ORDRE_JOURS.map((jour) => ({ jour, visites: parJourMap.get(jour) ?? 0 })),
+    parJour: ORDRE_JOURS.map((jour) => {
+      const occurrences = occurrencesParJour.get(jour) ?? 0;
+      const total = visitesParJourMap.get(jour) ?? 0;
+      return { jour, visites: occurrences > 0 ? Math.round((total / occurrences) * 10) / 10 : 0 };
+    }),
     parPlage: PLAGES.flatMap((plage) =>
       ORDRE_JOURS.map((jour) => ({ jour, plage: plage.label, visites: parPlageMap.get(`${jour}|${plage.label}`) ?? 0 })),
     ),
@@ -381,7 +445,12 @@ export function calculerDepuisBruts(bruts: DonneesBrutes, maintenant: Date): Res
     };
   });
 
-  const seriesMensuelles: SerieMensuelle[] = statsMois.map((s) => ({ mois: s.mois, revenus: s.revenus, visites: s.visites }));
+  // seriesMensuelles : démarre à DEBUT_RAPPORTS (2026-05), pas DATE_LANCEMENT (2025-12-08) —
+  // statsMois/moisListe couvrent déjà DATE_LANCEMENT→moisFinComplet, on filtre juste l'affichage.
+  // N'affecte PAS les totaux aVie (depuisLancement garde toutes les factures, sans plancher).
+  const seriesMensuelles: SerieMensuelle[] = statsMois
+    .filter((s) => s.mois >= moisKey(DEBUT_RAPPORTS))
+    .map((s) => ({ mois: s.mois, revenus: s.revenus, visites: s.visites }));
 
   // Restriction à la saison (1er mai → 30 sept) pour churn / tauxVisite / moyenneRevenusParJour.
   const statsMoisSaison = statsMois.filter((s) => estMoisSaison(s.mois));
@@ -462,6 +531,8 @@ export function calculerDepuisBruts(bruts: DonneesBrutes, maintenant: Date): Res
     moisSaisonInclus,
     seriesMensuelles,
     notifications,
+    recompensesActives,
+    promosActives,
     avertissements: warnings,
   };
 }

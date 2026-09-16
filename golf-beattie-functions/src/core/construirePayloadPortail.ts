@@ -18,6 +18,11 @@
  *   - comptabilite.synthese.valeurRachetee (aucun taux $/point établi)
  *   - notifications.tauxOuverture (ff_push_notifications ne donne aucune donnée d'ouverture)
  *
+ * aVie.recompensesActives / aVie.promosActives : calculés depuis les
+ * collections "recompenses" (actif === true && !isDeletedLogical) et
+ * "Promotions" (Actif === true && aujourd'hui ∈ [Date_debut, Date_fin],
+ * fuseau America/Toronto) — voir calculerAnalytics.ts.
+ *
  * Limitations connues — champs OBLIGATOIRES (non optionnels dans le contrat)
  * sans aucune source de données réelle, mis à 0 faute d'alternative (même
  * cause racine que les champs ci-dessus, mais le contrat ne les rend pas
@@ -90,6 +95,7 @@ interface PeriodeAVie {
   churnMoyenMensuel: number; tauxVisiteMoyenMensuel: number;
   notifications: BlocNotifications; seriesMensuelles: SeriesMensuelles[];
   pointsDistribuesFactures: number; pointsDistribuesBonus: number;
+  recompensesActives?: number; promosActives?: number;
 }
 
 interface Achalandage { parJour: { jour: string; visites: number }[]; parPlage: { jour: string; plage: string; visites: number }[] }
@@ -319,6 +325,8 @@ export async function construirePayloadPortail(db: Firestore, options: { mainten
     seriesMensuelles: resultat.seriesMensuelles,
     pointsDistribuesFactures: resultat.depuisLancement.pointsDistribuesFactures,
     pointsDistribuesBonus: resultat.depuisLancement.pointsDistribuesTirage,
+    recompensesActives: resultat.recompensesActives,
+    promosActives: resultat.promosActives,
   };
 
   const recompenses: Recompense[] = resultat.depuisLancement.reclamationsParRecompense.map((r) => ({
