@@ -433,6 +433,7 @@ export default function OngletComptabilite({ franchiseData, franchiseName, rappo
   // entièrement plutôt que remplies de tirets si aucune promo du mois n'a la donnée.
   const promoPeriodeDisponible = mergedPromos.some((p) => typeof p.periode === "string");
   const promoTypeDisponible = mergedPromos.some((p) => typeof p.typeRabais === "string");
+  const promoUtilisationsDisponible = mergedPromos.some((p) => typeof p.utilisations === "number");
   const promoCoutDisponible = mergedPromos.some((p) => typeof p.coutReel === "number");
   const promoRevenusDisponible = mergedPromos.some((p) => typeof p.revenusGeneres === "number");
   const colsPromos: ColDef[] = [
@@ -442,7 +443,8 @@ export default function OngletComptabilite({ franchiseData, franchiseName, rappo
     ...(codesPromoDisponible ? [{ header: "Code", key: "code" }] as ColDef[] : []),
     ...(promoPeriodeDisponible ? [{ header: "Période", key: "periode" }] as ColDef[] : []),
     ...(promoTypeDisponible ? [{ header: "Type de rabais", key: "typeRabais" }] as ColDef[] : []),
-    { header: "Utilisations totales",  key: "utilisations",    fmt: (v) => v != null ? fmtNombre(v as number) : "—", align: "right" },
+    ...(promoUtilisationsDisponible ? [{ header: "Utilisations totales", key: "utilisations",
+      fmt: (v) => fmtNombre(v as number), align: "right" } as ColDef] : []),
     ...(promoCoutDisponible ? [{ header: "Coût réel", key: "coutReel",
       fmt: (v) => v == null || (v as number) === 0 ? "—" : fmtArgent(v as number), align: "right" } as ColDef] : []),
     ...(promoRevenusDisponible ? [{ header: "Revenus totaux", key: "revenusGeneres",
