@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    function meExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function active() { return meExists() && me().get('statut', '') != 'revoque'; }
+    function myRole() { return meExists() ? me().role : null; }
+    function myClientId() { return meExists() ? me().get('clientId', null) : null; }
+
+    function isStaff() { return active() && myRole() in ['admin', 'employe']; }
+    function isAdmin() { return active() && myRole() == 'admin'; }
+    function isOwnClient(clientId) {
+      return active() && myRole() == 'client' && myClientId() == clientId;
+    }
+    function canRead(clientId) { return isStaff() || isOwnClient(clientId); }
+    // Phase 1A : un invité a les mêmes droits qu'un propriétaire sur SON
+    // clientId — la restriction par section vient en phase 1B.
+    function canWriteAsClient(clientId) { return isOwnClient(clientId); }
+
+    match /clients/{clientId} {
+      allow read: if canRead(clientId);
+      allow update: if isStaff()
+                    || (canWriteAsClient(clientId)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['contact', 'restaurant', 'telephone_restaurant',
+                                       'telephone_contact', 'courriel_restaurant', 'courriel']));
+      allow create, delete: if isStaff();
+
+      match /roadmap/{docId}         { allow read: if canRead(clientId); allow write: if isStaff() || canWriteAsClient(clientId); }
+      match /notifs/{docId}          { allow read: if canRead(clientId); allow write: if isStaff() || canWriteAsClient(clientId); }
+      match /messages/{docId}        { allow read: if canRead(clientId); allow write: if isStaff() || canWriteAsClient(clientId); }
+      match /journal/{docId} {
+        allow read: if canRead(clientId);
+        allow create, delete: if isStaff();
+        allow update: if isStaff() || canWriteAsClient(clientId);
+        match /conversation/{msgId} { allow read, write: if canRead(clientId); }
+      }
+      match /branding/{docId} {
+        allow read, write: if isStaff() || canWriteAsClient(clientId);
+        match /{sub}/{docId2} { allow read, write: if isStaff() || canWriteAsClient(clientId); }
+      }
+      match /documentation/{docId}        { allow read: if canRead(clientId); allow write: if isStaff(); }
+      match /rendezvous/{docId}           { allow read, write: if isStaff() || canWriteAsClient(clientId); }
+      match /demandesSupport/{docId}      { allow read: if canRead(clientId); allow create: if isStaff() || canWriteAsClient(clientId); allow update: if isStaff(); }
+      match /rencontresMensuelles/{docId} { allow read, write: if isStaff() || canWriteAsClient(clientId); }
+      match /settings/{docId}             { allow read, write: if isStaff() || canWriteAsClient(clientId); }
+      match /users/{uid}                  { allow read: if canRead(clientId); allow write: if false; } // écrit uniquement via /api/client/invite (SDK Admin)
+      match /syncConfig/{docId}           { allow read, write: if false; }                              // SDK Admin uniquement
+      match /analytics/{docId}            { allow read: if canRead(clientId); allow write: if false; }  // écrit par portailSyncJob (SDK Admin)
+      match /alertes/{docId}              { allow read: if canRead(clientId); allow write: if false; }
+      match /rapports/{docId}             { allow read: if canRead(clientId); allow write: if false; }
+      // onboarding et activite : données de seed historiques (scripts/seed-*.mjs,
+      // SDK Admin), non lues ni écrites par l'app aujourd'hui — lecture ouverte
+      // par cohérence avec le reste de clients/{clientId}, écriture fermée.
+      match /onboarding/{docId}           { allow read: if canRead(clientId); allow write: if false; }
+      match /activite/{docId}             { allow read: if canRead(clientId); allow write: if false; }
+    }
+
+    match /users/{uid} {
+      allow read: if isStaff() || request.auth.uid == uid;
+      allow write: if false; // toujours via SDK Admin
+    }
+
+    match /admin_config/statut_plateforme {
+      allow read: if active();
+      allow write: if isStaff();
+    }
+    match /admin_config/annonces/items/{itemId} {
+      allow read: if isStaff() || active();
+      allow write: if isStaff();
+    }
+    match /admin_config/{docId} {
+      allow read, write: if isStaff();
+    }
+
+    match /nouveautes/{docId}      { allow read, write: if isStaff(); } // lecture client via /api/client/nouveautes (SDK Admin)
+    match /notifs_internes/{docId} { allow read, write: if isStaff(); }
+
+    // organisations, taches, documentation_interne : jamais accédés en SDK
+    // client (confirmé par recherche exhaustive, y compris chemins
+    // dynamiques) — aucun match => refusés par défaut.
+  }
+}

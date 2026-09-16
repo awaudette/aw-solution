@@ -6,6 +6,9 @@ import * as logger from "firebase-functions/logger";
 import { genererRapportPdf } from "./core/genererRapportPdf";
 import { seedRoadmapMain } from "./core/seedRoadmapMain";
 
+export { generateContrat } from "./core/generateContrat";
+export { getSignedContratUrl } from "./core/getSignedContratUrl";
+
 // Aucun argument requis : une Cloud Function déployée dans le projet aw-portail
 // obtient automatiquement des Application Default Credentials scopées à ce même
 // projet (Firestore + Storage) — pas de service account à fournir ici, contrairement

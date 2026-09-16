@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entente de service — Forfait Essentiel — AW Solution</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #0d1424;
+    --blue:   #0362e3;
+    --ink:    #1a2333;
+    --mid:    #4a5568;
+    --light:  #8a96aa;
+    --rule:   #dce3ef;
+    --bg:     #ffffff;
+    --cream:  #f7f9fc;
+  }
+
+  body {
+    background: #e8ecf2;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    padding: 40px 20px;
+  }
+
+  .page {
+    background: var(--bg);
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 64px 72px 80px;
+    box-shadow: 0 4px 40px rgba(13,20,36,0.13);
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 36px;
+  }
+
+  .header-left {}
+
+  .brand {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 17px;
+    letter-spacing: 0.04em;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--light);
+    letter-spacing: 0.06em;
+  }
+
+  .header-right {
+    text-align: right;
+  }
+
+  .doc-type {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--blue);
+    border: 0.5px solid var(--blue);
+    padding: 5px 12px;
+    border-radius: 100px;
+    margin-bottom: 6px;
+  }
+
+  .doc-ref {
+    display: block;
+    font-size: 10px;
+    color: var(--light);
+    font-weight: 300;
+  }
+
+  /* ── BLUE RULE ── */
+  .blue-rule {
+    height: 1.5px;
+    background: var(--blue);
+    margin-bottom: 8px;
+  }
+
+  .thin-rule {
+    height: 0.5px;
+    background: var(--rule);
+    margin: 24px 0;
+  }
+
+  /* ── TITLE BLOCK ── */
+  .title-block {
+    margin-bottom: 32px;
+    padding-bottom: 28px;
+    border-bottom: 0.5px solid var(--rule);
+  }
+
+  .doc-eyebrow {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 12px;
+  }
+
+  .doc-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--navy);
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+
+  .doc-title em {
+    font-style: italic;
+    color: var(--mid);
+  }
+
+  .doc-subtitle {
+    font-size: 12px;
+    font-weight: 300;
+    color: var(--light);
+    line-height: 1.6;
+  }
+
+  /* ── PARTIES ── */
+  .parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-bottom: 24px;
+    background: var(--cream);
+    border: 0.5px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .party {
+    padding: 20px 24px;
+  }
+
+  .party + .party {
+    border-left: 0.5px solid var(--rule);
+  }
+
+  .party-role {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 10px;
+  }
+
+  .party-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--navy);
+    margin-bottom: 6px;
+  }
+
+  .party-info {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--mid);
+    line-height: 1.75;
+  }
+
+  .var {
+    color: var(--blue);
+    font-style: italic;
+  }
+
+  .effective {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--mid);
+    margin-bottom: 28px;
+    padding: 12px 16px;
+    border-left: 2px solid var(--blue);
+    background: #f0f5ff;
+    border-radius: 0 4px 4px 0;
+  }
+
+  /* ── ARTICLES ── */
+  .article {
+    margin-bottom: 22px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .article-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 0.5px solid var(--rule);
+  }
+
+  .article-num {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--blue);
+    min-width: 20px;
+  }
+
+  .article-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--navy);
+  }
+
+  .article-body {
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.8;
+  }
+
+  /* ── FEATURES GRID ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 24px;
+    margin-top: 12px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .feature-group {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .feature-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 0.5px solid var(--rule);
+  }
+
+  .feature-item {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.65;
+    padding: 2px 0;
+    padding-left: 12px;
+    position: relative;
+  }
+
+  .feature-item::before {
+    content: '·';
+    position: absolute;
+    left: 2px;
+    color: var(--blue);
+    font-weight: 500;
+  }
+
+  .feature-note {
+    font-size: 10px;
+    color: var(--light);
+    font-style: italic;
+    margin-top: 4px;
+    padding-left: 12px;
+  }
+
+  /* ── PRICE BOX ── */
+  .price-box {
+    background: var(--cream);
+    border: 0.5px solid var(--rule);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .price-item {
+    flex: 1;
+  }
+
+  .price-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--light);
+    margin-bottom: 4px;
+  }
+
+  .price-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--navy);
+  }
+
+  .price-value .var {
+    font-size: 13px;
+  }
+
+  .price-divider {
+    width: 0.5px;
+    height: 40px;
+    background: var(--rule);
+  }
+
+  .price-note {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--mid);
+    line-height: 1.7;
+    margin-top: 10px;
+  }
+
+  /* ── BULLET LIST ── */
+  .bullet-list {
+    margin-top: 8px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .bullet-item {
+    font-size: 12.5px;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.75;
+    padding-left: 14px;
+    position: relative;
+    margin-bottom: 4px;
+  }
+
+  .bullet-item::before {
+    content: '·';
+    position: absolute;
+    left: 2px;
+    color: var(--blue);
+    font-weight: 500;
+  }
+
+  /* ── SIGNATURES ── */
+  .signatures {
+    margin-top: 36px;
+    padding-top: 28px;
+    border-top: 1.5px solid var(--blue);
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .sig-title {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 20px;
+  }
+
+  .sig-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+
+  .sig-block {}
+
+  .sig-party {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--navy);
+    margin-bottom: 16px;
+    padding-bottom: 6px;
+    border-bottom: 0.5px solid var(--rule);
+  }
+
+  .sig-line {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sig-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .sig-field-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--light);
+  }
+
+  .sig-field-line {
+    height: 28px;
+    border-bottom: 0.5px solid var(--ink);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--mid);
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 3px;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 0.5px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-left {
+    font-size: 9px;
+    font-weight: 300;
+    color: var(--light);
+    line-height: 1.6;
+  }
+
+  .footer-right {
+    font-size: 9px;
+    font-weight: 300;
+    color: var(--light);
+    text-align: right;
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    body { background: white; padding: 0; }
+    .page { box-shadow: none; padding: 48px 56px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="brand">AW Solution</div>
+      <div class="brand-sub">Trois-Rivières, Québec · support@awsolution.ca</div>
+      <div class="brand-sub">NEQ 2280870389 · DUNS 243339351</div>
+    </div>
+    <div class="header-right">
+      <span class="doc-type">Entente de service</span>
+      <span class="doc-ref">Forfait Essentiel · 199 $/succursale/mois</span>
+    </div>
+  </div>
+
+  <div class="blue-rule"></div>
+
+  <!-- TITLE -->
+  <div class="title-block" style="margin-top:28px;">
+    <p class="doc-eyebrow">Plateforme de fidélité et CRM mobile</p>
+    <h1 class="doc-title">Entente de service <em>SaaS</em></h1>
+    <p class="doc-subtitle">Fourniture d'une plateforme logicielle de fidélité et de gestion de la relation client en mode logiciel-service</p>
+  </div>
+
+  <!-- PARTIES -->
+  <div class="parties">
+    <div class="party">
+      <p class="party-role">Le Fournisseur</p>
+      <p class="party-name">AW Solution</p>
+      <p class="party-info">
+        Trois-Rivières (Québec)<br>
+        NEQ : 2280870389<br>
+        Représenté par : Alex-William Audette, Fondateur<br>
+        support@awsolution.ca
+      </p>
+    </div>
+    <div class="party">
+      <p class="party-role">Le Client</p>
+      <p class="party-name">{{nom_legal_client}}</p>
+      <p class="party-info">
+        {{adresse_client}}<br>
+        NEQ : {{neq_client}}<br>
+        Représenté par : {{nom_representant}}<br>
+        {{titre_representant}}
+      </p>
+    </div>
+  </div>
+
+  <div class="effective">
+    La présente entente (l'« Entente ») prend effet le {{date_entree_vigueur}}.
+  </div>
+
+  <!-- ART 1 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 1</span>
+      <span class="article-title">Objet</span>
+    </div>
+    <p class="article-body">AW Solution met à la disposition du Client une application mobile de fidélité et une plateforme de gestion de la relation client (CRM) en mode logiciel-service (SaaS), développées sur les technologies FlutterFlow, Firebase et Flutter (les « Services »).</p>
+  </div>
+
+  <!-- ART 2 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 2</span>
+      <span class="article-title">Services inclus — Forfait Essentiel</span>
+    </div>
+    <p class="article-body">L'abonnement comprend, pour chacune des {{nombre_succursales}} succursale(s) visée(s) :</p>
+    <div class="features-grid">
+      <div class="feature-group">
+        <div class="feature-label">Fidélisation & récompenses</div>
+        <div class="feature-item">Système de points</div>
+        <div class="feature-item">Catalogue de récompenses</div>
+        <div class="feature-item">Roue bonus quotidienne</div>
+        <div class="feature-item">Codes promo partenaires</div>
+        <div class="feature-item">Carte membre à code-barres</div>
+      </div>
+      <div class="feature-group">
+        <div class="feature-label">Engagement client</div>
+        <div class="feature-item">Promotions et offres ciblées</div>
+        <div class="feature-item">Popup vedette au lancement</div>
+        <div class="feature-item">Notifications push</div>
+      </div>
+      <div class="feature-group">
+        <div class="feature-label">Plateforme & administration</div>
+        <div class="feature-item">Application iOS et Android à l'image du Client</div>
+        <div class="feature-item">Design unique par restaurant</div>
+        <div class="feature-item">Gestion multi-succursale</div>
+        <div class="feature-item">Panneau d'administration</div>
+        <div class="feature-note">Intégration POS (Lightspeed, etc.) — sur demande, tarif distinct</div>
+      </div>
+      <div class="feature-group">
+        <div class="feature-label">Analytique</div>
+        <div class="feature-item">Tableau de bord vue d'ensemble</div>
+        <div class="feature-label" style="margin-top:12px;">Support & accompagnement</div>
+        <div class="feature-item">Accès direct et personnel, en tout temps</div>
+        <div class="feature-item">Matériel de lancement fourni</div>
+      </div>
+    </div>
+    <p class="article-body" style="margin-top:12px;font-size:10.5px;color:var(--mid);">Éléments hors périmètre ou facturés en supplément : développements sur mesure additionnels, intégrations non prévues à l'Entente.</p>
+  </div>
+
+  <!-- ART 3 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 3</span>
+      <span class="article-title">Durée et renouvellement</span>
+    </div>
+    <p class="article-body">L'Entente est conclue pour une durée initiale de <strong>douze (12) mois</strong> à compter de sa date de prise d'effet. Elle se renouvelle automatiquement par périodes successives de douze (12) mois, à moins qu'une Partie ne transmette un avis écrit de non-renouvellement au moins trente (30) jours avant l'échéance de la période en cours.</p>
+  </div>
+
+  <!-- ART 4 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 4</span>
+      <span class="article-title">Prix et modalités de paiement</span>
+    </div>
+    <div class="price-box">
+      <div class="price-item">
+        <div class="price-label">Frais d'implantation</div>
+        <div class="price-value">Aucun</div>
+      </div>
+      <div class="price-divider"></div>
+      <div class="price-item">
+        <div class="price-label">Par succursale / mois</div>
+        <div class="price-value">{{prix_par_succursale}} $</div>
+      </div>
+      <div class="price-divider"></div>
+      <div class="price-item">
+        <div class="price-label">Total mensuel</div>
+        <div class="price-value">{{prix_total_mensuel}} $</div>
+      </div>
+    </div>
+    <p class="price-note">L'abonnement est prélevé automatiquement par carte de crédit le <strong>1er de chaque mois</strong>. Les taxes applicables (TPS/TVQ) s'ajoutent aux montants indiqués. Les prix peuvent être révisés à chaque renouvellement annuel moyennant un préavis écrit de soixante (60) jours.</p>
+  </div>
+
+  <!-- ART 5 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 5</span>
+      <span class="article-title">Résiliation anticipée</span>
+    </div>
+    <p class="article-body">Chaque Partie peut résilier l'Entente en cas de manquement important de l'autre Partie non corrigé dans les quinze (15) jours suivant un avis écrit. En cas de résiliation anticipée par le Client sans motif valable, les frais correspondant aux mois restants de la période en cours sont immédiatement exigibles. AW Solution ne peut être tenue responsable des délais causés par le Client (fourniture tardive d'assets, d'accès ou d'informations).</p>
+  </div>
+
+  <!-- ART 6 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 6</span>
+      <span class="article-title">Obligations d'AW Solution</span>
+    </div>
+    <div class="bullet-list">
+      <div class="bullet-item">Livrer et maintenir les Services décrits à l'article 2</div>
+      <div class="bullet-item">Assurer l'hébergement, la sécurité et la maintenance de la plateforme</div>
+      <div class="bullet-item">Corriger toute anomalie signalée dans un délai raisonnable</div>
+      <div class="bullet-item">Protéger les renseignements personnels conformément à l'article 9</div>
+    </div>
+  </div>
+
+  <!-- ART 7 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 7</span>
+      <span class="article-title">Obligations du Client</span>
+    </div>
+    <div class="bullet-list">
+      <div class="bullet-item">Utiliser les Services conformément à l'Entente et aux lois applicables</div>
+      <div class="bullet-item">Fournir en temps utile les informations, assets et accès nécessaires (logo, couleurs, photos, accès plateforme)</div>
+      <div class="bullet-item">Acquitter les sommes dues aux échéances prévues</div>
+      <div class="bullet-item">Ne pas tenter de copier, décompiler, reproduire ou revendre la plateforme sans autorisation écrite d'AW Solution</div>
+    </div>
+  </div>
+
+  <!-- ART 8 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 8</span>
+      <span class="article-title">Propriété intellectuelle</span>
+    </div>
+    <p class="article-body">La plateforme, son code source, son architecture, ses interfaces et tout élément développé par AW Solution demeurent la propriété exclusive d'AW Solution. L'Entente confère au Client une licence d'utilisation non exclusive, non transférable et révocable pour la durée de l'Entente, sans transfert de propriété intellectuelle. Les données du Client et de sa clientèle demeurent la propriété du Client.</p>
+  </div>
+
+  <!-- ART 9 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 9</span>
+      <span class="article-title">Protection des renseignements personnels (Loi 25)</span>
+    </div>
+    <p class="article-body">AW Solution agit à titre de mandataire du Client pour le traitement des renseignements personnels de la clientèle du Client. Ces renseignements ne sont utilisés qu'aux fins de fourniture des Services. AW Solution met en place des mesures de sécurité raisonnables et avise le Client sans délai de tout incident de confidentialité. Les Parties reconnaissent que l'hébergement peut impliquer un traitement de données à l'extérieur du Québec. Le Client demeure responsable d'obtenir les consentements requis auprès de sa propre clientèle.</p>
+  </div>
+
+  <!-- ART 10 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 10</span>
+      <span class="article-title">Confidentialité</span>
+    </div>
+    <p class="article-body">Chaque Partie s'engage à préserver la confidentialité des informations non publiques obtenues de l'autre Partie et à ne les utiliser qu'aux fins de l'Entente, pendant sa durée et pour une période de <strong>deux (2) ans</strong> suivant sa résiliation ou son expiration.</p>
+  </div>
+
+  <!-- ART 11 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 11</span>
+      <span class="article-title">Limitation de responsabilité</span>
+    </div>
+    <p class="article-body">Sauf faute lourde ou intentionnelle, la responsabilité totale d'AW Solution est limitée aux sommes versées par le Client au cours des douze (12) derniers mois précédant l'événement en cause. AW Solution n'est pas responsable des dommages indirects, pertes de profits, de données ou de clientèle.</p>
+  </div>
+
+  <!-- ART 12 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 12</span>
+      <span class="article-title">Sort des données à la fin de l'Entente</span>
+    </div>
+    <p class="article-body">À la fin de l'Entente, AW Solution met à la disposition du Client, sur demande écrite, un export de ses données dans un format usuel dans un délai de trente (30) jours. Passé ce délai, les données sont supprimées des systèmes actifs d'AW Solution, sous réserve des obligations légales de conservation.</p>
+  </div>
+
+  <!-- ART 13 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 13</span>
+      <span class="article-title">Langue</span>
+    </div>
+    <p class="article-body">La présente Entente est rédigée en français conformément à la Charte de la langue française. En cas de divergence avec toute version dans une autre langue, la version française prévaut.</p>
+  </div>
+
+  <!-- ART 14 -->
+  <div class="article">
+    <div class="article-header">
+      <span class="article-num">Art. 14</span>
+      <span class="article-title">Dispositions générales</span>
+    </div>
+    <div class="bullet-list">
+      <div class="bullet-item"><strong>Droit applicable :</strong> L'Entente est régie par les lois du Québec. Tout litige relève des tribunaux du district judiciaire de Trois-Rivières.</div>
+      <div class="bullet-item"><strong>Cession :</strong> Le Client ne peut céder l'Entente sans le consentement écrit d'AW Solution.</div>
+      <div class="bullet-item"><strong>Intégralité :</strong> L'Entente constitue l'accord complet entre les Parties et remplace toute entente antérieure.</div>
+      <div class="bullet-item"><strong>Modifications :</strong> Toute modification doit être convenue par écrit par les deux Parties.</div>
+      <div class="bullet-item"><strong>Divisibilité :</strong> La nullité d'une clause n'affecte pas la validité des autres.</div>
+    </div>
+  </div>
+
+  <!-- SIGNATURES -->
+  <div class="signatures">
+    <p class="sig-title">Signatures — En foi de quoi, les Parties ont signé la présente Entente</p>
+    <div class="sig-grid">
+      <div class="sig-block">
+        <p class="sig-party">AW Solution — Le Fournisseur</p>
+        <div class="sig-line">
+          <div class="sig-field">
+            <span class="sig-field-label">Signature</span>
+            <div class="sig-field-line">{{signature_aw}}</div>
+          </div>
+          <div class="sig-field">
+            <span class="sig-field-label">Nom</span>
+            <div class="sig-field-line">Alex-William Audette</div>
+          </div>
+          <div class="sig-field">
+            <span class="sig-field-label">Titre</span>
+            <div class="sig-field-line">Fondateur</div>
+          </div>
+          <div class="sig-field">
+            <span class="sig-field-label">Date</span>
+            <div class="sig-field-line">{{date_signature_aw}}</div>
+          </div>
+        </div>
+      </div>
+      <div class="sig-block">
+        <p class="sig-party">{{nom_legal_client}} — Le Client</p>
+        <div class="sig-line">
+          <div class="sig-field">
+            <span class="sig-field-label">Signature</span>
+            <div class="sig-field-line"></div>
+          </div>
+          <div class="sig-field">
+            <span class="sig-field-label">Nom</span>
+            <div class="sig-field-line">{{nom_representant}}</div>
+          </div>
+          <div class="sig-field">
+            <span class="sig-field-label">Titre</span>
+            <div class="sig-field-line">{{titre_representant}}</div>
+          </div>
+          <div class="sig-field">
+            <span class="sig-field-label">Date</span>
+            <div class="sig-field-line"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-left">
+      AW Solution · Trois-Rivières, Québec<br>
+      support@awsolution.ca · awsolution.ca
+    </div>
+    <div class="footer-right">
+      NEQ 2280870389 · DUNS 243339351<br>
+      Entente de service — Forfait Essentiel
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
