@@ -75,7 +75,7 @@ function validate(value: unknown, spec: Spec, path: string, errors: string[]): v
 
 const blocNotifications: Spec = { object: {
   envoyees: "number",
-  tauxOuverture: "number",
+  tauxOuverture: { optional: "number" },
   meilleureCampagne: { optional: { object: { nom: "string", revenus: "number" } } },
 } };
 
@@ -99,7 +99,7 @@ const periodeStandard: Spec = { object: {
   participationBonus: "number", pointsEmisFactures: "number", pointsEmisBonus: "number",
   tauxVisite: "number", revenuParVisite: "number", breakageRate: "number", burnRate: "number",
   variations, series: { array: serieJournaliere },
-  notifications: blocNotifications, promos: blocPromos,
+  notifications: blocNotifications, promos: { optional: blocPromos },
 } };
 
 const seriesMensuelles: Spec = { object: { mois: "string", revenus: "number", visites: "number" } };
@@ -139,7 +139,7 @@ const periodeAVie: Spec = { object: {
   reclamations: "number", bonusJoues: "number", pointsEnCirculation: "number",
   burnRate: "number", breakageRate: "number",
   churnMoyenMensuel: "number", tauxVisiteMoyenMensuel: "number",
-  notifications: blocNotifications, promos: blocPromos,
+  notifications: blocNotifications, promos: { optional: blocPromos },
   seriesMensuelles: { array: seriesMensuelles },
   pointsDistribuesFactures: "number", pointsDistribuesBonus: "number",
   recompensesActives: { optional: "number" },
@@ -174,7 +174,7 @@ const achalandage: Spec = { object: {
 
 const recompense: Spec = { object: {
   nom: "string", reclamations: "number", pointsUtilises: "number",
-  foodCost: "number", pourcentageFoodCost: "number",
+  foodCost: { optional: "number" }, pourcentageFoodCost: "number",
 } };
 
 const campagne: Spec = { object: {
@@ -204,7 +204,7 @@ const comptabilitePromotion: Spec = { object: {
 const syntheseComptable: Spec = { object: {
   inscriptions: "number", revenus: "number", membresActifs: "number", membresTotal: "number",
   notifEnvoyees: "number", tauxOuverturePush: "number", visites: "number",
-  pointsDistribues: "number", pointsRachetes: "number", valeurRachetee: "number",
+  pointsDistribues: "number", pointsRachetes: "number", valeurRachetee: { optional: "number" },
   bonusAttribues: "number", valeurBonus: "number",
 } };
 
@@ -216,7 +216,7 @@ const snapshotFinMois: Spec = { object: {
 const comptabilite: Spec = { object: {
   moisRef: "string",
   facturesDetail: { array: comptabiliteFacture },
-  codesPromo: { array: comptabiliteCodePromo },
+  codesPromo: { optional: { array: comptabiliteCodePromo } },
   reclamationsDetail: { array: comptabiliteReclamation },
   promotions: { array: comptabilitePromotion },
   synthese: syntheseComptable,
@@ -252,9 +252,9 @@ const analyticsGlobalSpec: Spec = { object: {
   achalandage,
   frequenceVisite: { array: { object: { tranche: "string", membres: "number" } } },
   recompenses: { array: recompense },
-  campagnes: { array: campagne },
+  campagnes: { optional: { array: campagne } },
   comptabilite,
-  promotionsDetail: { array: promotionDetail },
+  promotionsDetail: { optional: { array: promotionDetail } },
 } };
 
 // ─── Document franchise — clients/{clientId}/analytics/{franchiseId} ─────────

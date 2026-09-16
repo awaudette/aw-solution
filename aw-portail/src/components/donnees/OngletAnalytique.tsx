@@ -147,6 +147,12 @@ function SecFrequenceVisite({ global }: { global: AnalyticsGlobal }) {
 
 // ─── Top récompenses ──────────────────────────────────────────────────────────
 function SecRecompenses({ global }: { global: AnalyticsGlobal }) {
+  // Food cost absent chez les clients dont la CF ne le calcule pas encore —
+  // on masque les deux colonnes plutôt que d'afficher $0/NaN/— sur chaque ligne.
+  const foodCostDisponible = global.recompenses.some((r) => r.foodCost != null);
+  const headers = foodCostDisponible
+    ? ["Récompense", "Réclamations", "Points utilisés", "Food cost", "% Food cost"]
+    : ["Récompense", "Réclamations", "Points utilisés"];
   return (
     <div style={CARD}>
       <h3 style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: "0 0 16px" }}>Récompenses — top réclamations</h3>
@@ -154,7 +160,7 @@ function SecRecompenses({ global }: { global: AnalyticsGlobal }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid #F3F4F6" }}>
-              {["Récompense", "Réclamations", "Points utilisés", "Food cost", "% Food cost"].map((h) => (
+              {headers.map((h) => (
                 <th key={h} style={{ padding: "8px 12px", textAlign: h === "Récompense" ? "left" : "right", color: "#9CA3AF", fontWeight: 500, fontSize: 12 }}>{h}</th>
               ))}
             </tr>
@@ -165,12 +171,16 @@ function SecRecompenses({ global }: { global: AnalyticsGlobal }) {
                 <td style={{ padding: "10px 12px", color: "#111827", fontWeight: 500 }}>{r.nom}</td>
                 <td style={{ padding: "10px 12px", textAlign: "right", color: "#374151" }}>{fmtNombre(r.reclamations)}</td>
                 <td style={{ padding: "10px 12px", textAlign: "right", color: "#374151" }}>{fmtNombre(r.pointsUtilises)}</td>
-                <td style={{ padding: "10px 12px", textAlign: "right", color: "#374151" }}>{fmtArgent(r.foodCost)}</td>
-                <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: r.pourcentageFoodCost > 30 ? "#ef4444" : r.pourcentageFoodCost > 20 ? "#f59e0b" : "#1baf7a" }}>
-                    {fmtPct(r.pourcentageFoodCost)}
-                  </span>
-                </td>
+                {foodCostDisponible && (
+                  <>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: "#374151" }}>{r.foodCost != null ? fmtArgent(r.foodCost) : "—"}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: r.pourcentageFoodCost > 30 ? "#ef4444" : r.pourcentageFoodCost > 20 ? "#f59e0b" : "#1baf7a" }}>
+                        {fmtPct(r.pourcentageFoodCost)}
+                      </span>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
@@ -282,13 +292,18 @@ interface PerfCampagnesProps {
 }
 function SecPerformanceCampagnes({ d, title = "Performance campagnes" }: PerfCampagnesProps) {
   const rows: [string, string][] = [
-    ["Promos lancées",          fmtNombre(d.promos.lancees)],
-    ["Revenus attribués",       fmtArgent(d.promos.revenusAttribues)],
-    ["Promos réclamées",        fmtNombre(d.promos.conversions)],
-    ["Clics",                   fmtNombre(d.promos.clics)],
+    ...(d.promos ? ([
+      ["Promos lancées",    fmtNombre(d.promos.lancees)],
+      ["Revenus attribués", fmtArgent(d.promos.revenusAttribues)],
+      ["Promos réclamées",  fmtNombre(d.promos.conversions)],
+      ["Clics",             fmtNombre(d.promos.clics)],
+    ] as [string, string][]) : []),
     ["Notifications envoyées (destinataires)", fmtNombre(d.notifications.envoyees)],
-    ["Taux d'ouverture",        fmtPct(d.notifications.tauxOuverture)],
+    ...(d.notifications.tauxOuverture != null
+      ? ([["Taux d'ouverture", fmtPct(d.notifications.tauxOuverture)]] as [string, string][])
+      : []),
   ];
+  if (rows.length === 0) return null;
   return (
     <div style={CARD}>
       <h3 style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: "0 0 16px" }}>{title}</h3>
@@ -440,15 +455,17 @@ function TabAVie({ d, global }: { d: PeriodeAVie; global: AnalyticsGlobal }) {
             <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4 }}>Envoyées</div>
             <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>{fmtNombre(d.notifications.envoyees)}</div>
           </div>
-          <div>
-            <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4 }}>Taux d&apos;ouverture moyen</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>{fmtPct(d.notifications.tauxOuverture)}</div>
-          </div>
+          {d.notifications.tauxOuverture != null && (
+            <div>
+              <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 4 }}>Taux d&apos;ouverture moyen</div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>{fmtPct(d.notifications.tauxOuverture)}</div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Ordre imposé : Promotions → Récompenses → Fréquence → Achalandage */}
-      <SecPromotionsLancees promotions={global.promotionsDetail} />
+      {global.promotionsDetail && <SecPromotionsLancees promotions={global.promotionsDetail} />}
       <SecRecompenses global={global} />
       <SecFrequenceVisite global={global} />
       <SecAchalandage achalandage={global.achalandage} />
@@ -531,7 +548,7 @@ function Tab30j({ d, global }: { d: Periode30j; global: AnalyticsGlobal }) {
       <LineChart d={d} label="30 jours" seriesLabel="15 juil. – 14 août 2026" />
       <SecRecompenses global={global} />
       {/* Promotions lancées : filtrées par windowStart — promo-rentree (2026-08-01) uniquement */}
-      <SecPromotionsLancees promotions={global.promotionsDetail} windowStart={windowStart} />
+      {global.promotionsDetail && <SecPromotionsLancees promotions={global.promotionsDetail} windowStart={windowStart} />}
       <SecPerformanceCampagnes d={d} />
       <SecAchalandage achalandage={global.achalandage} />
     </>
@@ -612,7 +629,7 @@ function Tab90j({ d, global }: { d: Periode90j; global: AnalyticsGlobal }) {
       <SecRecompenses global={global} />
       <SecFrequenceVisite global={global} />
       {/* Promotions lancées : filtrées par windowStart — 3 promos dans la fenêtre 90j */}
-      <SecPromotionsLancees promotions={global.promotionsDetail} windowStart={windowStart} />
+      {global.promotionsDetail && <SecPromotionsLancees promotions={global.promotionsDetail} windowStart={windowStart} />}
       <SecPerformanceCampagnes d={d} />
       <SecAchalandage achalandage={global.achalandage} />
     </>

@@ -9,9 +9,9 @@ import {
 import { db } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
 import { loadStripe } from "@stripe/stripe-js";
-import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import {
-  CreditCard, Loader2, Download, ChevronLeft, ChevronRight,
+  CreditCard, Landmark, Loader2, Download, ChevronLeft, ChevronRight,
   Star, Check, X, Calendar, Eye, Pencil, Plus,
 } from "lucide-react";
 import {
@@ -166,11 +166,20 @@ interface StripeFacture {
 }
 
 interface CarteInfo {
+  type: "card";
   brand: string;
   last4: string;
   exp_month: number;
   exp_year: number;
 }
+
+interface AcssInfo {
+  type: "acss_debit";
+  bankName: string | null;
+  last4: string;
+}
+
+type MoyenPaiementInfo = CarteInfo | AcssInfo;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -211,9 +220,9 @@ function formatExpiry(month: number, year: number): string {
 
 const PAGE_SIZE = 5;
 
-// ─── CardSetupForm ────────────────────────────────────────────────────────────
+// ─── PaymentSetupForm ─────────────────────────────────────────────────────────
 
-function CardSetupForm({
+function PaymentSetupForm({
   clientId,
   customerId,
   onSuccess,
@@ -235,21 +244,25 @@ function CardSetupForm({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/stripe/setup-intent", {
+      const { error: stripeError, setupIntent } = await stripe.confirmSetup({
+        elements,
+        redirect: "if_required",
+        confirmParams: { return_url: window.location.href },
+      });
+      if (stripeError) throw new Error(stripeError.message);
+      if (!setupIntent || setupIntent.status !== "succeeded") {
+        throw new Error("Le moyen de paiement n'a pas pu être confirmé");
+      }
+
+      // Le nouveau moyen de paiement devient celui utilisé pour les
+      // prélèvements automatiques — vérifié et enregistré côté serveur.
+      const res = await fetch("/api/stripe/default-payment-method", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ customerId, clientId }),
+        body:    JSON.stringify({ customerId, clientId, setupIntentId: setupIntent.id }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) throw new Error("Formulaire introuvable");
-
-      const { error: stripeError } = await stripe.confirmCardSetup(data.client_secret, {
-        payment_method: { card: cardElement },
-      });
-      if (stripeError) throw new Error(stripeError.message);
 
       onSuccess();
     } catch (err) {
@@ -261,21 +274,7 @@ function CardSetupForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-      <div className="p-3.5 border border-gray-200 rounded-xl bg-gray-50">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                fontSize: "15px",
-                color: "#374151",
-                fontFamily: "system-ui, -apple-system, sans-serif",
-                "::placeholder": { color: "#9CA3AF" },
-              },
-              invalid: { color: "#EF4444" },
-            },
-          }}
-        />
-      </div>
+      <PaymentElement options={{ fields: { billingDetails: "auto" } }} />
       {error && <p className="text-sm text-red-500">{error}</p>}
       <div className="flex gap-2">
         <button
@@ -292,7 +291,7 @@ function CardSetupForm({
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0362E3] text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
         >
           {loading && <Loader2 size={14} className="animate-spin" />}
-          Enregistrer la carte
+          Enregistrer
         </button>
       </div>
     </form>
@@ -307,7 +306,7 @@ export default function PaiementPage() {
   const [clientInfo, setClientInfo]       = useState<ClientInfo | null | undefined>(undefined);
   const [abonnement, setAbonnement]       = useState<StripeAbonnement | null>(null);
   const [factures, setFactures]           = useState<StripeFacture[]>([]);
-  const [carte, setCarte]                 = useState<CarteInfo | null>(null);
+  const [moyenPaiement, setMoyenPaiement]   = useState<MoyenPaiementInfo | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
 
   const [forfaitDialog, setForfaitDialog]   = useState(false);
@@ -315,6 +314,8 @@ export default function PaiementPage() {
   const [upsellLoading, setUpsellLoading]   = useState(false);
   const [upsellDone, setUpsellDone]         = useState(false);
   const [cardDialog, setCardDialog]         = useState(false);
+  const [setupClientSecret, setSetupClientSecret] = useState<string | null>(null);
+  const [setupError, setSetupError]         = useState<string | null>(null);
 
   const [factPage, setFactPage] = useState(0);
 
@@ -344,7 +345,7 @@ export default function PaiementPage() {
       const data = await res.json();
       setAbonnement(data.subscription ?? null);
       setFactures(data.invoices ?? []);
-      setCarte(data.paymentMethods ?? null);
+      setMoyenPaiement(data.paymentMethods ?? null);
     } catch {}
     finally { setStripeLoading(false); }
   }, [clientId]);
@@ -353,7 +354,30 @@ export default function PaiementPage() {
     if (clientInfo?.stripeCustomerId) fetchStripeData(clientInfo.stripeCustomerId);
   }, [clientInfo?.stripeCustomerId, fetchStripeData]);
 
-  // Après ajout de carte
+  // Le PaymentElement a besoin du client_secret dès son rendu (pas seulement
+  // à la confirmation) — on le récupère à l'ouverture du dialog.
+  useEffect(() => {
+    if (!cardDialog || !clientInfo?.stripeCustomerId) { setSetupClientSecret(null); setSetupError(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res  = await fetch("/api/stripe/setup-intent", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ customerId: clientInfo.stripeCustomerId, clientId }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.error) { setSetupError(data.error); return; }
+        setSetupClientSecret(data.client_secret);
+      } catch {
+        if (!cancelled) setSetupError("Impossible de charger le formulaire de paiement");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [cardDialog, clientInfo?.stripeCustomerId, clientId]);
+
+  // Après ajout d'un moyen de paiement
   async function handleCardSuccess() {
     setCardDialog(false);
     if (clientInfo?.stripeCustomerId) fetchStripeData(clientInfo.stripeCustomerId);
@@ -528,37 +552,53 @@ export default function PaiementPage() {
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Loader2 size={14} className="animate-spin" /> Chargement…
               </div>
-            ) : carte ? (
+            ) : moyenPaiement ? (
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-7 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <CreditCard size={16} className="text-gray-500" />
+                    {moyenPaiement.type === "card"
+                      ? <CreditCard size={16} className="text-gray-500" />
+                      : <Landmark size={16} className="text-gray-500" />}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {formatBrand(carte.brand)}{" "}
-                      <span className="text-gray-400">•••• •••• •••• {carte.last4}</span>
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Expire {formatExpiry(carte.exp_month, carte.exp_year)}
-                    </p>
+                    {moyenPaiement.type === "card" ? (
+                      <>
+                        <p className="text-sm font-medium text-gray-900">
+                          {formatBrand(moyenPaiement.brand)}{" "}
+                          <span className="text-gray-400">•••• •••• •••• {moyenPaiement.last4}</span>
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Expire {formatExpiry(moyenPaiement.exp_month, moyenPaiement.exp_year)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-gray-900">
+                          Débit préautorisé{" "}
+                          <span className="text-gray-400">•••• {moyenPaiement.last4}</span>
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {moyenPaiement.bankName ?? "Compte bancaire canadien"}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
                 <button
                   onClick={() => setCardDialog(true)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 border border-gray-200 transition-colors flex-shrink-0"
                 >
-                  <Pencil size={11} /> Modifier ma carte
+                  <Pencil size={11} /> Modifier
                 </button>
               </div>
             ) : (
               <div className="flex items-center justify-between gap-4">
-                <p className="text-sm text-gray-500">Aucune carte enregistrée</p>
+                <p className="text-sm text-gray-500">Aucun moyen de paiement enregistré</p>
                 <button
                   onClick={() => setCardDialog(true)}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0362E3] text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm flex-shrink-0"
                 >
-                  <Plus size={14} /> Ajouter une carte
+                  <Plus size={14} /> Ajouter un moyen de paiement
                 </button>
               </div>
             )}
@@ -787,20 +827,26 @@ export default function PaiementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog — Carte Stripe ─────────────────────────────────────── */}
+      {/* ── Dialog — Moyen de paiement Stripe ─────────────────────────── */}
       <Dialog open={cardDialog} onOpenChange={(o) => { if (!o) setCardDialog(false); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
-              {carte ? "Modifier ma carte" : "Ajouter une carte"}
+              {moyenPaiement ? "Modifier mon moyen de paiement" : "Ajouter un moyen de paiement"}
             </DialogTitle>
             <DialogDescription className="text-gray-500 pt-0.5">
-              Vos informations de carte sont sécurisées par Stripe.
+              Carte ou débit préautorisé — vos informations sont sécurisées par Stripe.
             </DialogDescription>
           </DialogHeader>
-          {clientInfo.stripeCustomerId ? (
-            <Elements stripe={stripePromise}>
-              <CardSetupForm
+          {!clientInfo.stripeCustomerId ? (
+            <p className="text-sm text-gray-400 py-4 text-center">
+              Aucun compte Stripe associé à ce client.
+            </p>
+          ) : setupError ? (
+            <p className="text-sm text-red-500 py-4 text-center">{setupError}</p>
+          ) : setupClientSecret ? (
+            <Elements stripe={stripePromise} options={{ clientSecret: setupClientSecret, locale: "fr-CA" }}>
+              <PaymentSetupForm
                 clientId={clientId}
                 customerId={clientInfo.stripeCustomerId}
                 onSuccess={handleCardSuccess}
@@ -808,9 +854,9 @@ export default function PaiementPage() {
               />
             </Elements>
           ) : (
-            <p className="text-sm text-gray-400 py-4 text-center">
-              Aucun compte Stripe associé à ce client.
-            </p>
+            <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center">
+              <Loader2 size={14} className="animate-spin" /> Chargement…
+            </div>
           )}
         </DialogContent>
       </Dialog>

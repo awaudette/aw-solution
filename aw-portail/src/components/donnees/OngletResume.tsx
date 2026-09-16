@@ -222,7 +222,7 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
       {/* ══ SECTION 2 : Depuis le lancement ══ */}
       <section>
         <SectionTitle>Depuis le lancement</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${aVie.promos ? 4 : 3}, 1fr)`, gap: 16 }}>
           <div style={CARD}>
             <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8 }}>Total membres</div>
             <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>{fmtNombre(aVie.membresTotal)}</div>
@@ -235,10 +235,12 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
             <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8 }}>Visites</div>
             <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>{fmtNombre(aVie.visites)}</div>
           </div>
-          <div style={CARD}>
-            <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8 }}>Revenus promos</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>{fmtArgent(aVie.promos.revenusAttribues)}</div>
-          </div>
+          {aVie.promos && (
+            <div style={CARD}>
+              <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8 }}>Revenus promos</div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>{fmtArgent(aVie.promos.revenusAttribues)}</div>
+            </div>
+          )}
         </div>
       </section>
 

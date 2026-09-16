@@ -42,7 +42,8 @@ export type TypeRapport  = "performance" | "comptable" | "annuel";
 /** Métriques du bloc Notifications (présent dans chaque période) */
 export interface BlocNotifications {
   envoyees:            number;
-  tauxOuverture:       number; // %
+  /** Absent chez les clients dont la CF ne calcule pas encore de taux d'ouverture. */
+  tauxOuverture?:      number; // %
   meilleureCampagne?:  { nom: string; revenus: number };
 }
 
@@ -99,7 +100,8 @@ export interface PeriodeStandard {
   };
   series:        SerieJournaliere[]; // une entrée par jour
   notifications: BlocNotifications;
-  promos:        BlocPromos;
+  /** Absent chez les clients dont la CF ne pousse pas encore de données de promos. */
+  promos?:       BlocPromos;
 }
 
 // ─── Période 30 j ─────────────────────────────────────────────────────────────
@@ -160,7 +162,8 @@ export interface PeriodeAVie {
   tauxVisiteMoyenMensuel: number;
   // ── Blocs annexes ─────────────────────────────────────────────────────────
   notifications:          BlocNotifications;
-  promos:                 BlocPromos;
+  /** Absent chez les clients dont la CF ne pousse pas encore de données de promos. */
+  promos?:                BlocPromos;
   // ── Séries temporelles ────────────────────────────────────────────────────
   /** Revenus et visites par mois complet depuis le lancement.
    *  Phase 3 — portailSyncJob : calculé et poussé pour global + chaque franchise. */
@@ -256,7 +259,8 @@ export interface Recompense {
   nom:                 string;
   reclamations:        number;
   pointsUtilises:      number;
-  foodCost:            number; // CAD — coût réel pour le client
+  /** Absent chez les clients dont la CF ne calcule pas encore le food cost. */
+  foodCost?:           number; // CAD — coût réel pour le client
   pourcentageFoodCost: number; // foodCost / revenusTotal * 100
 }
 
@@ -344,7 +348,8 @@ export interface ComptabiliteFranchise {
     visites:           number; // Phase 3 — portailSyncJob
     pointsDistribues:  number; // Phase 3 — portailSyncJob
     pointsRachetes:    number; // Phase 3 — portailSyncJob
-    valeurRachetee:    number; // Phase 3 — portailSyncJob
+    /** Absent chez les clients dont la CF ne calcule pas encore le food cost des rachats. */
+    valeurRachetee?:   number; // Phase 3 — portailSyncJob
     bonusAttribues:    number; // Phase 3 — portailSyncJob
     valeurBonus:       number; // Phase 3 — portailSyncJob
   };
@@ -357,7 +362,8 @@ export interface Comptabilite {
   /** Données du dernier mois complet (sélecteur de mois dans l'onglet Comptabilité) */
   moisRef:          string; // "2026-07" — mois couvert
   facturesDetail:   ComptabiliteFacture[];
-  codesPromo:       ComptabiliteCodePromo[];
+  /** Absent chez les clients dont la CF ne pousse pas encore de codes promo. */
+  codesPromo?:      ComptabiliteCodePromo[];
   reclamationsDetail:ComptabiliteReclamation[];
   promotions:       ComptabilitePromotion[];
   // Synthèse du mois
@@ -373,7 +379,8 @@ export interface Comptabilite {
     visites:           number;
     pointsDistribues:  number;
     pointsRachetes:    number;
-    valeurRachetee:    number; // food cost total des réclamations
+    /** Absent chez les clients dont la CF ne calcule pas encore le food cost des rachats. */
+    valeurRachetee?:   number; // food cost total des réclamations
     bonusAttribues:    number;
     valeurBonus:       number;
   };
@@ -429,12 +436,14 @@ export interface AnalyticsGlobal {
   achalandage:     Achalandage;
   frequenceVisite: { tranche: string; membres: number }[];
   recompenses:     Recompense[];
-  campagnes:       Campagne[];
+  /** Absent chez les clients dont la CF ne pousse pas encore de campagnes. */
+  campagnes?:      Campagne[];
   comptabilite:    Comptabilite;
   /** Promotions lancées dans le programme — données lifetime.
    *  Phase 3 — portailSyncJob : calculé et poussé à la clôture de chaque mois.
-   *  Règle de période : seul dateDebutISO détermine l'inclusion dans une fenêtre. */
-  promotionsDetail: PromotionDetail[]; // Phase 3 — portailSyncJob
+   *  Règle de période : seul dateDebutISO détermine l'inclusion dans une fenêtre.
+   *  Absent chez les clients dont la CF ne pousse pas encore ces données. */
+  promotionsDetail?: PromotionDetail[]; // Phase 3 — portailSyncJob
 }
 
 // ─── Document par franchise ───────────────────────────────────────────────────

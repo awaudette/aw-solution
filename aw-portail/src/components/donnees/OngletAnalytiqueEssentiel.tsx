@@ -252,34 +252,38 @@ export default function OngletAnalytiqueEssentiel({
       </section>
 
       {/* ══ Bloc D — Promotions ══ */}
-      <section>
-        <SectionTitle sub="Depuis le lancement">Promotions</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          <MetricCard label="Promotions lancées" value={fmtNombre(aVie.promos.lancees)} />
-          <MetricCard label="Conversions"        value={fmtNombre(aVie.promos.conversions)} />
-          <MetricCard label="Revenus attribués"  value={fmtArgent(aVie.promos.revenusAttribues)} />
-        </div>
-        {aVie.promos.meilleurePromo && (
-          <div style={{ ...CARD, marginTop: 16, borderLeft: `4px solid ${ACCENT}` }}>
-            <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
-              Meilleure promotion depuis le lancement
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
-              {aVie.promos.meilleurePromo.nom}
-            </div>
-            <div style={{ fontSize: 14, color: "#374151" }}>
-              {fmtArgent(aVie.promos.meilleurePromo.revenusAttribues)} de revenus attribués
-            </div>
+      {aVie.promos && (
+        <section>
+          <SectionTitle sub="Depuis le lancement">Promotions</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            <MetricCard label="Promotions lancées" value={fmtNombre(aVie.promos.lancees)} />
+            <MetricCard label="Conversions"        value={fmtNombre(aVie.promos.conversions)} />
+            <MetricCard label="Revenus attribués"  value={fmtArgent(aVie.promos.revenusAttribues)} />
           </div>
-        )}
-      </section>
+          {aVie.promos.meilleurePromo && (
+            <div style={{ ...CARD, marginTop: 16, borderLeft: `4px solid ${ACCENT}` }}>
+              <div style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                Meilleure promotion depuis le lancement
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
+                {aVie.promos.meilleurePromo.nom}
+              </div>
+              <div style={{ fontSize: 14, color: "#374151" }}>
+                {fmtArgent(aVie.promos.meilleurePromo.revenusAttribues)} de revenus attribués
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ══ Bloc E — Notifications ══ */}
       <section>
         <SectionTitle sub="Depuis le lancement">Notifications</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${aVie.notifications.tauxOuverture != null ? 2 : 1}, 1fr)`, gap: 16 }}>
           <MetricCard label="Notifications envoyées" value={fmtNombre(aVie.notifications.envoyees)} />
-          <MetricCard label="Taux d'ouverture moyen" value={fmtPct(aVie.notifications.tauxOuverture)} />
+          {aVie.notifications.tauxOuverture != null && (
+            <MetricCard label="Taux d'ouverture moyen" value={fmtPct(aVie.notifications.tauxOuverture)} />
+          )}
         </div>
       </section>
 

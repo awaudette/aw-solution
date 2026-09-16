@@ -51,6 +51,7 @@ import { AdminCalendrierClient } from "@/components/calendrier/AdminCalendrierCl
 import { AdminDocumentationTab } from "@/components/admin/AdminDocumentationTab";
 import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 import { AdminDonneesViewer } from "@/components/admin/AdminDonneesViewer";
+import { CreerAbonnementDialog } from "@/components/admin/clients/CreerAbonnementDialog";
 
 interface ContratInfo {
   urlHTML:        string;
@@ -75,6 +76,7 @@ interface ClientDetail {
   neq?:            string;
   titreContact?:   string;
   prixParSuccursale?: number;
+  stripeCustomerId?: string;
   contrat?:        ContratInfo;
 }
 
@@ -158,6 +160,22 @@ function AdminClientDetailContent() {
   const [signDate, setSignDate]           = useState(() => new Date().toISOString().slice(0, 10));
   const [signing, setSigning]             = useState(false);
   const [signError, setSignError]         = useState<string | null>(null);
+  const [abonnementDialogOpen, setAbonnementDialogOpen] = useState(false);
+  const [abonnement, setAbonnement] = useState<{
+    id: string; statut: string; nom: string | null; prix: number | null; devise: string; dateProchaineFacture: string | null;
+  } | null>(null);
+  const [abonnementLoaded, setAbonnementLoaded] = useState(false);
+
+  async function refreshAbonnement() {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/admin/clients/${id}/stripe/abonnement`);
+      const data = await res.json();
+      if (res.ok) setAbonnement(data.subscription ?? null);
+    } finally {
+      setAbonnementLoaded(true);
+    }
+  }
 
   // Synchronisation — jeton portailSyncJob
   interface SyncStatus {
@@ -212,6 +230,7 @@ function AdminClientDetailContent() {
         neq:              d.neq ?? "",
         titreContact:     d.titreContact ?? "",
         prixParSuccursale: d.prixParSuccursale ?? 0,
+        stripeCustomerId: d.stripeCustomerId ?? undefined,
         contrat: contratRaw ? {
           urlHTML:       contratRaw.urlHTML       ?? "",
           urlPDF:        contratRaw.urlPDF        ?? undefined,
@@ -225,6 +244,15 @@ function AdminClientDetailContent() {
     });
     return () => unsub();
   }, [id]);
+
+  // Abonnement Stripe — chargé dès qu'on connaît le customerId du client,
+  // pour savoir s'il faut afficher le bouton "Créer l'abonnement" ou
+  // l'abonnement existant à la place.
+  useEffect(() => {
+    if (!client?.stripeCustomerId) { setAbonnementLoaded(true); return; }
+    refreshAbonnement();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client?.stripeCustomerId]);
 
   // Messages listener
   useEffect(() => {
@@ -587,14 +615,33 @@ function AdminClientDetailContent() {
 
             {/* Forfait */}
             <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-                Forfait & tarification
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                  Forfait & tarification
+                </h2>
+                {abonnementLoaded && !abonnement && (
+                  <button
+                    onClick={() => setAbonnementDialogOpen(true)}
+                    disabled={!client.stripeCustomerId}
+                    title={!client.stripeCustomerId ? "Aucun client Stripe associé" : undefined}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed rounded-lg"
+                  >
+                    Créer l&apos;abonnement
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 <PriceCard label="Forfait"          value={client.forfait} />
                 <PriceCard label="Succursales"      value={String(client.succursales)} />
                 <PriceCard label="Total / mois"     value={client.montantMensuel ? `${client.montantMensuel} $` : "—"} />
               </div>
+              {abonnement && (
+                <div className="mt-4 bg-gray-50 rounded-lg p-4 space-y-1.5 text-sm">
+                  <div>Abonnement Stripe : <span className="font-medium text-gray-800">{abonnement.nom ?? "—"}{abonnement.prix != null ? ` — ${abonnement.prix.toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $ ${abonnement.devise}/mois` : ""}</span></div>
+                  <div>Statut : <span className="font-medium text-gray-800">{abonnement.statut}</span></div>
+                  <div>Prochain prélèvement : <span className="font-medium text-gray-800">{abonnement.dateProchaineFacture ? new Date(abonnement.dateProchaineFacture).toLocaleDateString("fr-CA", { year: "numeric", month: "long", day: "numeric" }) : "—"}</span></div>
+                </div>
+              )}
             </div>
 
             {/* Synchronisation portailSyncJob */}
@@ -1030,6 +1077,13 @@ function AdminClientDetailContent() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {abonnementDialogOpen && (
+      <CreerAbonnementDialog
+        clientId={id}
+        onClose={() => { setAbonnementDialogOpen(false); refreshAbonnement(); }}
+      />
+    )}
     </>
   );
 }

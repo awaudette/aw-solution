@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     console.log("[stripe/customer] customerId:", customerId);
     console.log("[stripe/customer] STRIPE_SECRET_KEY présente:", !!process.env.STRIPE_SECRET_KEY);
 
-    const [subscriptions, invoices, paymentMethods] = await Promise.all([
+    const [subscriptions, invoices, customer] = await Promise.all([
       stripe.subscriptions.list({
         customer: customerId,
         status: "active",
@@ -41,20 +41,23 @@ export async function GET(request: NextRequest) {
         customer: customerId,
         limit: 100,
       }),
-      stripe.paymentMethods.list({
-        customer: customerId,
-        type: "card",
-        limit: 1,
+      // Le moyen de paiement affiché est toujours invoice_settings.default_payment_method
+      // du customer (celui réellement utilisé pour les prélèvements) — jamais "le premier
+      // trouvé", qui pouvait être une carte périmée si un débit préautorisé a été ajouté après.
+      stripe.customers.retrieve(customerId, {
+        expand: ["invoice_settings.default_payment_method"],
       }),
     ]);
 
     console.log(`[stripe/customer] ${invoices.data.length} facture(s) trouvée(s) pour ${customerId}`);
     console.log("[stripe/customer] statuts:", invoices.data.map((inv) => `${inv.number ?? inv.id}=${inv.status}`));
 
-    // Prochaine facture
+    // Prochaine facture (aperçu — ne reflète pas toujours la date réelle du prochain
+    // prélèvement pour un abonnement en attente de son premier cycle ; voir dateProchaineFacture
+    // ci-dessous, qui vient directement de l'item d'abonnement).
     let upcomingInvoice: { montant: number; date: string | null } | null = null;
     try {
-      const upcoming = await stripe.invoices.retrieveUpcoming({ customer: customerId });
+      const upcoming = await stripe.invoices.createPreview({ customer: customerId });
       upcomingInvoice = {
         montant: upcoming.amount_due / 100,
         date: upcoming.next_payment_attempt
@@ -67,28 +70,37 @@ export async function GET(request: NextRequest) {
       upcomingInvoice = null;
     }
 
-    // Abonnement actif
+    // Abonnement actif — current_period_end/start vivent désormais sur l'item
+    // d'abonnement (SubscriptionItem), plus sur la Subscription elle-même.
     const sub = subscriptions.data[0] ?? null;
+    const subItem = sub?.items.data[0] ?? null;
     const subscription = sub
       ? {
           statut:               sub.status,
           dateDebut:            new Date(sub.start_date * 1000).toISOString(),
-          dateProchaineFacture: new Date(sub.current_period_end * 1000).toISOString(),
-          prix: sub.items.data[0]?.price?.unit_amount
-            ? sub.items.data[0].price.unit_amount / 100
-            : null,
-          devise: sub.items.data[0]?.price?.currency?.toUpperCase() ?? "CAD",
+          dateProchaineFacture: subItem ? new Date(subItem.current_period_end * 1000).toISOString() : null,
+          prix: subItem?.price?.unit_amount != null ? subItem.price.unit_amount / 100 : null,
+          devise: subItem?.price?.currency?.toUpperCase() ?? "CAD",
         }
       : null;
 
-    // Carte enregistrée
-    const pm = paymentMethods.data[0] ?? null;
-    const carte = pm?.card
+    // Moyen de paiement par défaut — carte ou débit préautorisé (acss_debit).
+    const customerObj = customer as import("stripe").Stripe.Customer;
+    const defaultPm = customerObj.deleted ? null : customerObj.invoice_settings?.default_payment_method;
+    const pm = defaultPm && typeof defaultPm !== "string" ? defaultPm : null;
+    const carte = pm?.type === "card" && pm.card
       ? {
+          type:      "card" as const,
           brand:     pm.card.brand,
           last4:     pm.card.last4,
           exp_month: pm.card.exp_month,
           exp_year:  pm.card.exp_year,
+        }
+      : pm?.type === "acss_debit" && pm.acss_debit
+      ? {
+          type:        "acss_debit" as const,
+          bankName:    pm.acss_debit.bank_name,
+          last4:       pm.acss_debit.last4,
         }
       : null;
 

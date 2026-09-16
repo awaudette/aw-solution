@@ -233,7 +233,7 @@ function BlocSynthese({
           ["Notif. envoyées",   fmtNombre(synthese.notifEnvoyees),       `${fmtPct(synthese.tauxOuverturePush)} ouverture`],
           ["Visites", fmtNombre(synthese.visites),    ""],
           ["Points distribués", fmtNombre(synthese.pointsDistribues),    ""],
-          ["Points rachetés",   fmtNombre(synthese.pointsRachetes),      `${fmtArgent(synthese.valeurRachetee)} food cost`],
+          ["Points rachetés",   fmtNombre(synthese.pointsRachetes),      synthese.valeurRachetee != null ? `${fmtArgent(synthese.valeurRachetee)} food cost` : ""],
           // Pas de valeur $ affichée ici : aucun taux de conversion points → dollars
           // n'existe dans l'app, donc synthese.valeurBonus n'a aucune source valide.
           ["Bonus attribués",   fmtNombre(synthese.bonusAttribues),      ""],
@@ -367,6 +367,10 @@ export default function OngletComptabilite({ franchiseData, franchiseName, rappo
   // absent (déjà signalé par rapportMoisIndisponible, pas un problème de nom).
   const facturesMismatch = !!(franchiseData && synthese && synthese.revenus > 0 && !rapportMoisIndisponible && factures.length === 0);
 
+  // Absent chez les clients dont la CF ne pousse pas encore de codes promo
+  // (distinct d'un mois sans aucun code utilisé, où le tableau existe mais est vide).
+  const codesPromoDisponible = donneesGlobalMois?.codesPromo !== undefined;
+
   // ── Promotions fusionnées ─────────────────────────────────────────────────
   const mergedPromos: MergedPromo[] = useMemo(() => {
     const promotions = donneesGlobalMois?.promotions ?? [];
@@ -426,7 +430,9 @@ export default function OngletComptabilite({ franchiseData, franchiseName, rappo
   // plutôt qu'un montant qui laisse croire à une donnée mesurée.
   const colsPromos: ColDef[] = [
     { header: "Promotion",             key: "nom"                                                              },
-    { header: "Code",                  key: "code"                                                             },
+    // Colonne "Code" masquée entièrement si la CF cliente ne pousse pas de codes promo
+    // (plutôt qu'un tiret sur chaque ligne).
+    ...(codesPromoDisponible ? [{ header: "Code", key: "code" }] as ColDef[] : []),
     { header: "Période",               key: "periode"                                                          },
     { header: "Type de rabais",        key: "typeRabais"                                                       },
     { header: "Utilisations totales",  key: "utilisations",    fmt: (v) => fmtNombre(v as number), align: "right" },

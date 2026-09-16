@@ -28,8 +28,22 @@ export async function POST(request: NextRequest) {
 
     const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
-      payment_method_types: ["card"],
+      payment_method_types: ["card", "acss_debit"],
       usage: "off_session",
+      // acss_debit exige toujours un mandat explicite (aucune valeur implicite
+      // possible via un futur PaymentIntent, contrairement à card) — mandat de
+      // type "business" (le payeur est la franchise, pas un particulier) avec
+      // un prélèvement mensuel récurrent.
+      payment_method_options: {
+        acss_debit: {
+          currency: "cad",
+          mandate_options: {
+            transaction_type: "business",
+            payment_schedule: "interval",
+            interval_description: "Prélèvement automatique le 1er de chaque mois pour l'abonnement AW Solution.",
+          },
+        },
+      },
     });
 
     return NextResponse.json({ client_secret: setupIntent.client_secret });
