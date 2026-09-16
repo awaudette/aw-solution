@@ -38,7 +38,7 @@ export const portailSyncJob = onSchedule(
     timeZone: "America/Toronto",
     region: "northamerica-northeast1",
     timeoutSeconds: 300,
-    memory: "512MiB",
+    memory: "1GiB",
     secrets: [PORTAIL_SYNC_TOKEN],
   },
   async () => {
