@@ -124,7 +124,7 @@ export interface ReclamationAgg { jour: string; nomRecompense: string; pointsUti
 export interface PushAgg { jour: string }
 
 /** Une Promotion brute (collection "Promotions") — dates déjà résolues en "YYYY-MM-DD" Toronto. */
-export interface PromoAgg { actif: boolean; debut: string; fin: string }
+export interface PromoAgg { titre: string; actif: boolean; debut: string; fin: string }
 
 function refUid(ref: unknown, warnings: string[], contexte: string): string | null {
   const r = ref as { id?: string } | undefined;
@@ -288,7 +288,13 @@ export async function chargerDonneesBrutes(db: Firestore): Promise<DonneesBrutes
     const debutTs = data.Date_debut?.toDate?.();
     const finTs = data.Date_fin?.toDate?.();
     if (!debutTs || !finTs) { warnings.push(`Promotions/${d.id} : Date_debut/Date_fin absente — exclue de promosActives`); return; }
-    promotions.push({ actif: data.Actif === true, debut: torontoDateString(debutTs), fin: torontoDateString(finTs) });
+    if (typeof data.Titre !== "string") warnings.push(`Promotions/${d.id} : Titre absent — "(sans titre)" utilisé dans le rapport comptable`);
+    promotions.push({
+      titre: typeof data.Titre === "string" ? data.Titre : "(sans titre)",
+      actif: data.Actif === true,
+      debut: torontoDateString(debutTs),
+      fin: torontoDateString(finTs),
+    });
   });
 
   return {

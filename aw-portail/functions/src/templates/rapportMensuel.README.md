@@ -40,7 +40,9 @@ champs déjà déployés partout.
 Champs réels de `comptabilite.synthese` (mois courant, pas cumulatif) :
 `inscriptions, membresActifs, membresTotal, notifEnvoyees, tauxOuverturePush,
 visites, pointsDistribues, pointsRachetes, valeurRachetee, bonusAttribues,
-valeurBonus, revenus`.
+valeurBonus, revenus`. Depuis golf-beattie-functions (2026-09) : deux champs
+optionnels de plus, `pointsDistribuesFactures`/`pointsDistribuesBonus` — voir
+section 1 ci-dessous.
 
 Champs réels de `comptabilite.snapshotFinMois` (cumulatif, figé au dernier
 jour du mois) : `membresTotal, revenusTotal, visites, pointsEnCirculation,
@@ -63,16 +65,34 @@ valeurPointsDistribues`.
 |---|---|
 | `RESUME_VENTES` | `synthese.revenus` |
 | `RESUME_TRANSACTIONS` | `facturesDetail.length` (dérivé — aucun compteur brut) |
-| `RESUME_POINTS_FACTURES` / `_NOTE` | `synthese.pointsDistribues - synthese.valeurBonus` ; `_NOTE` = `""` (voir « Split points factures/bonus » ci-dessous) |
-| `RESUME_POINTS_BONUS` / `_NOTE` | `synthese.valeurBonus` ; `_NOTE` = `""` |
+| `RESUME_POINTS_FACTURES` / `_NOTE` | `synthese.pointsDistribuesFactures` si présent (golf), sinon repli `synthese.pointsDistribues - synthese.valeurBonus` (Poké — voir « Split points factures/bonus » ci-dessous) ; `_NOTE` = `""` |
+| `RESUME_POINTS_BONUS` / `_NOTE` | `synthese.pointsDistribuesBonus` si présent, sinon repli `synthese.valeurBonus` ; `_NOTE` = `""` |
 | `RESUME_POINTS_TOTAL` | `synthese.pointsDistribues` |
-| `RESUME_VALEUR_POINTS` | calculé : `pointsDistribues / 100 * TAUX_CONVERSION` |
+| `RESUME_VALEUR_POINTS` | calculé : `pointsDistribues / 100 * TAUX_CONVERSION` — **masqué** (`IF:TAUX_DEFINI`) si `clients/{clientId}.tauxConversionPoints` n'est pas défini (golf : masqué) |
 | `RESUME_POINTS_RECLAMES` | `synthese.pointsRachetes` |
 | `RESUME_NB_RECOMPENSES` | `reclamationsDetail.length` (dérivé) |
 | `RESUME_VALEUR_RECOMPENSES` | `synthese.valeurRachetee` ("food cost total des réclamations") |
-| `RESUME_RABAIS_ACCORDES` | calculé : somme de `facturesDetail[].rabaisApplique` — **jamais forcé à 0** |
-| `RESUME_COUT_RABAIS` | calculé : somme de `promotions[].coutReel` — **jamais forcé à 0** |
+| `RESUME_RABAIS_ACCORDES` | calculé : somme de `facturesDetail[].rabaisApplique` — **jamais forcé à 0**. Ligne **masquée** (`IF:RABAIS_PRESENT`) si rien dans les données ne parle de rabais (aucun `rabaisApplique > 0` ET aucun `promotions[].coutReel > 0`) |
+| `RESUME_COUT_RABAIS` | calculé : somme de `promotions[].coutReel` — **jamais forcé à 0**. Même garde `IF:RABAIS_PRESENT` que la ligne précédente |
 | `RESUME_COUT_TOTAL` | calculé : `RESUME_VALEUR_RECOMPENSES + RESUME_COUT_RABAIS` |
+
+**Split points factures/bonus — champs explicites préférés.** `syntheseComptable` porte
+désormais deux champs optionnels calculés par la CF cliente : `pointsDistribuesFactures`
+(somme `points_gagnes` des factures du mois) et `pointsDistribuesBonus` (somme `gain`
+des tirages/bonus du mois) — golf-beattie-functions les envoie depuis
+`construirePayloadPortail.ts`. Quand ils sont présents, `genererRapportPdf.ts` les
+utilise directement pour `RESUME_POINTS_FACTURES`/`RESUME_POINTS_BONUS`. **Poké
+Station ne les envoie pas encore** : le repli historique via `valeurBonus` (voir
+« Split points factures/bonus — historique » plus bas) reste actif pour ce client,
+inchangé.
+
+**`IF:TAUX_DEFINI`** — un seul marqueur, répété à trois endroits (ligne « Valeur des
+points accordés », ligne « Passif en points en circulation » en section 3, et la
+note de bas de page sur le taux de conversion) : les trois disparaissent ensemble
+quand `client.tauxConversionPoints` est absent, pour ne pas afficher un montant en
+dollars dérivé d'un taux par défaut (0,40 $/100 pts) que le client n'a jamais
+confirmé. `TAUX_CONVERSION_DEFAUT = 0.40` reste utilisé en interne (calculs non
+affichés) mais n'apparaît dans le PDF que si le client a un taux explicite.
 
 Note sur `rabaisApplique` : dans le document réel, ce champ est toujours
 **présent** (jamais `undefined`), à `0` quand il n'y a pas de rabais — ne pas
@@ -101,17 +121,39 @@ explicite d'Alex : "pas une note discrète") :
   fond teinté + bordure d'accent, même poids visuel qu'un vrai avertissement,
   pas le style discret de `.footnote`/`.note-inline`).
 
-Bloc `ROW:PROMOTION`, un par entrée de `comptabilite.promotions[]` :
+Lignes triées par `dateDebut` croissante (repli sur l'ordre reçu quand `dateDebut`
+est absent, ex. Poké — `Array.prototype.sort` est stable). Bloc `ROW:PROMOTION`, un
+par entrée de `comptabilite.promotions[]` :
 
 | Jeton interne | Source (`ComptabilitePromotion`) |
 |---|---|
 | `promo_nom` | `nom` |
+| `promo_dateDebut` / `promo_dateFin` | `dateDebut` / `dateFin` |
 | `promo_type` | `typeRabais` |
 | `promo_utilisations` | `reclamations` |
 | `promo_revenus` | `revenusGeneres` |
 | `promo_cout` | `coutReel` |
 
-`IF:PROMOTIONS_PRESENTES` / `IF:PROMOTIONS_VIDE` selon `promotions.length`.
+**Colonnes affichées seulement si les données existent** — `ComptabilitePromotion` a
+un seul champ obligatoire (`nom`) ; tous les autres sont optionnels, pour couvrir des
+clients qui ne suivent que titre + dates (golf) à côté de clients qui suivent tout
+(Poké). Chaque colonne (en-tête **et** cellule, même marqueur des deux côtés) est
+gardée par son propre `IF:*`, actif seulement si **toutes** les promos du mois
+portent le champ :
+
+| Marqueur | Colonnes | Condition |
+|---|---|---|
+| `IF:PROMO_DATES_COL` | Date de début, Date de fin | toutes les promos ont `dateDebut` **et** `dateFin` |
+| `IF:PROMO_TYPE_COL` | Type de rabais | toutes ont `typeRabais` |
+| `IF:PROMO_UTIL_COL` | Utilisations | toutes ont `reclamations` |
+| `IF:PROMO_REVENUS_COL` | Revenus attribués | toutes ont `revenusGeneres` |
+| `IF:PROMO_COUT_COL` | Coût des rabais | toutes ont `coutReel` |
+
+Pour le golf (3 champs seulement) : seule `IF:PROMO_DATES_COL` est active. Pour Poké
+(tout présent, pas de `dateDebut`/`dateFin`) : toutes sauf `IF:PROMO_DATES_COL`.
+
+`IF:PROMOTIONS_PRESENTES` / `IF:PROMOTIONS_VIDE` selon `promotions.length` — état vide :
+« Aucune promotion lancée ce mois-ci ».
 
 `comptabilite.codesPromo[]` existe (code, promotionLiee, utilisations,
 rabaisTotal) mais n'est **volontairement pas utilisé** dans ce rapport —
@@ -126,7 +168,7 @@ signalé ici au cas où ce serait un oubli plutôt qu'un choix, pas un bug.
 | `REGISTRE_POINTS_UTILISES` | `synthese.pointsRachetes` |
 | `REGISTRE_SOLDE_FIN` | `snapshotFinMois.pointsEnCirculation` |
 | `REGISTRE_TAUX_RACHAT` | voir « `tauxRachat` — toujours pas déployé partout » ci-dessous |
-| `REGISTRE_PASSIF_DOLLARS` | calculé : `REGISTRE_SOLDE_FIN / 100 * TAUX_CONVERSION` |
+| `REGISTRE_PASSIF_DOLLARS` | calculé : `REGISTRE_SOLDE_FIN / 100 * TAUX_CONVERSION` — ligne **masquée** (`IF:TAUX_DEFINI`, voir section 1) si le client n'a pas de taux de conversion défini |
 
 `snapshotFinMois.valeurPointsDistribues` existe dans le document réel mais
 vaut `0` aujourd'hui (pas encore calculé par le `portailSyncJob`) —
@@ -141,6 +183,16 @@ ce champ tant qu'il n'est pas fiable.
 2. Filet (premier mois, ou document précédent manquant) : dériver
    algébriquement `soldeFin - pointsDistribues + pointsRachetes` du mois
    courant.
+
+Les deux approches supposent que `snapshotFinMois.pointsEnCirculation` est un
+**véritable snapshot au dernier jour du mois de référence**, pas le solde ACTUEL au
+moment du calcul. Golf-beattie-functions le calcule ainsi depuis
+`construirePayloadPortail.ts` : `pointsEnCirculation (actuel) - (points gagnés
+après la fin du mois) + (points utilisés après la fin du mois)` — annule l'effet de
+tout ce qui s'est passé depuis la fin du mois de référence pour revenir au solde
+réel de ce jour-là. Un client dont la CF envoie encore le solde ACTUEL brut
+produirait un `REGISTRE_SOLDE_FIN` (et donc un `REGISTRE_SOLDE_DEBUT` du mois
+suivant) faux dès que des points bougent après la clôture du mois affiché.
 
 ### Section 4 — Historique des factures du mois (résumé quotidien)
 
@@ -201,20 +253,26 @@ présent dans `functions/src/index.ts`) → `{ pdfUrl, facturesCsvUrl, publie: t
 CSV séparé) : le volume réel est sous 20 lignes par mois (9 chez Poké Station
 Trois-Rivières en juillet 2026), largement gérable en PDF.
 
-Bloc `ROW:RECLAMATION`, un par entrée de `comptabilite.reclamationsDetail[]` :
+Lignes triées par `date` **croissante**. Bloc `ROW:RECLAMATION`, un par entrée de
+`comptabilite.reclamationsDetail[]` :
 
 | Jeton interne | Source (`ComptabiliteReclamation`) |
 |---|---|
 | `reclamation_date` | `date` |
 | `reclamation_recompense` | `recompense` |
-| `reclamation_franchise` | `franchise` |
+| `reclamation_franchise` | `franchise` — colonne (en-tête + cellule) gardée par `IF:FRANCHISE_COL`, actif seulement si `facturesDetail[].franchise` ∪ `reclamationsDetail[].franchise` contient plus d'une valeur distincte. Golf (un seul établissement, `SITE_UNIQUE`) : masquée. Poké (plusieurs franchises) : affichée. |
 | `reclamation_points` | `pointsReclames` |
-| `reclamation_cout` | `foodCost` |
+| `reclamation_cout` | `foodCost` — colonne `IF:FOODCOST_COL`, actif si **au moins une** réclamation du mois a `foodCost > 0` (pas "toutes présentes" — un client sans food cost suivi envoie `0` partout, jamais `undefined`) |
 
 `IF:RECLAMATIONS_PRESENTES` / `IF:RECLAMATIONS_VIDE` selon
 `reclamationsDetail.length`.
 
-## Split points factures/bonus — résolu, disponible dès maintenant
+## Split points factures/bonus — historique (repli Poké)
+
+**Ce qui suit ne s'applique plus qu'en repli**, quand `synthese.pointsDistribuesFactures`/
+`pointsDistribuesBonus` sont absents du document (voir section 1 ci-dessus pour le
+chemin préféré, utilisé par golf). Conservé tel quel — c'est le comportement actif
+pour Poké Station, qui n'envoie pas encore les deux nouveaux champs.
 
 `valeurBonus` est le nombre de **points** distribués par les bonus joués
 (pas un montant en dollars, malgré le nom) ; `bonusAttribues` est le nombre

@@ -117,6 +117,19 @@ export function rendreGabaritRapport(params: {
   reclamationsPresentes: boolean;
   foodCostPresent: boolean;
   valeurRacheteePresente: boolean;
+  /** Colonne Franchise (réclamations) — masquée si le client n'a qu'un seul établissement. */
+  franchiseColPresent: boolean;
+  /** Taux de conversion $/point défini pour ce client — sinon "Valeur des points
+   *  accordés", "Passif en points en circulation" et la note de taux sont masqués. */
+  tauxDefini: boolean;
+  /** Rabais accordés / coût des rabais — masqués si rien dans les données n'en parle. */
+  rabaisPresent: boolean;
+  /** Colonnes du tableau Promotions — masquées individuellement si absentes des données. */
+  promoDatesPresentes: boolean;
+  promoTypePresent: boolean;
+  promoUtilisationsPresent: boolean;
+  promoRevenusPresent: boolean;
+  promoCoutPresent: boolean;
 }): { html: string; footerHtml: string } {
   const templateDir = path.join(__dirname, "..", "templates");
   let html = fs.readFileSync(path.join(templateDir, "rapportMensuel.html"), "utf8");
@@ -130,6 +143,14 @@ export function rendreGabaritRapport(params: {
   html = stripIfAbsent(html, "FOODCOST_COL", params.foodCostPresent);
   html = stripIfAbsent(html, "VALEUR_RECOMPENSES", params.valeurRacheteePresente);
   html = stripIfAbsent(html, "COUT_TOTAL", params.valeurRacheteePresente);
+  html = stripIfAbsent(html, "FRANCHISE_COL", params.franchiseColPresent);
+  html = stripIfAbsent(html, "TAUX_DEFINI", params.tauxDefini);
+  html = stripIfAbsent(html, "RABAIS_PRESENT", params.rabaisPresent);
+  html = stripIfAbsent(html, "PROMO_DATES_COL", params.promoDatesPresentes);
+  html = stripIfAbsent(html, "PROMO_TYPE_COL", params.promoTypePresent);
+  html = stripIfAbsent(html, "PROMO_UTIL_COL", params.promoUtilisationsPresent);
+  html = stripIfAbsent(html, "PROMO_REVENUS_COL", params.promoRevenusPresent);
+  html = stripIfAbsent(html, "PROMO_COUT_COL", params.promoCoutPresent);
   html = replaceScalars(html, params.scalaires);
 
   const footerRaw = fs.readFileSync(path.join(templateDir, "rapportMensuelPiedDePage.html"), "utf8");
@@ -248,13 +269,38 @@ export async function construireRapportHtml(
   // document Firestore réel. Détecté ici plutôt que laissé produire un $0/NaN
   // silencieux plus loin — voir stripIfAbsent().
   const valeurRacheteePresente = typeof synthese.valeurRachetee === "number" && !Number.isNaN(synthese.valeurRachetee);
-  const foodCostPresent = reclamationsDetail.every((r) => typeof r.foodCost === "number" && !Number.isNaN(r.foodCost));
+  // "au moins une valeur réelle > 0" plutôt que "toutes présentes" : un client
+  // sans food cost suivi (golf) envoie 0 partout, pas absent — mais 0 partout
+  // ne justifie pas d'afficher une colonne qui n'apporte rien.
+  const foodCostPresent = reclamationsDetail.some((r) => typeof r.foodCost === "number" && r.foodCost > 0);
+  // Idem pour la colonne Franchise : inutile quand le client n'a qu'un seul
+  // établissement (toutes les lignes portent la même valeur).
+  const franchisesDistinctes = new Set<string>();
+  facturesDetail.forEach((f) => franchisesDistinctes.add(f.franchise));
+  reclamationsDetail.forEach((r) => franchisesDistinctes.add(r.franchise));
+  const franchiseColPresent = franchisesDistinctes.size > 1;
+  // Le taux de conversion $/point n'a de sens que si le client en a défini un —
+  // sinon "valeur des points"/"passif en points" seraient des dollars inventés.
+  const tauxDefini = typeof client.tauxConversionPoints === "number" && Number.isFinite(client.tauxConversionPoints);
 
-  const pointsBonus = synthese.valeurBonus;
-  const pointsFactures = synthese.pointsDistribues - synthese.valeurBonus;
+  // Split points factures/bonus : préférer le détail explicite de la CF cliente
+  // quand il existe (golf) ; replier sur la dérivation historique via valeurBonus
+  // sinon (Poké Station — inchangé, voir rapportMensuel.README.md).
+  const pointsFactures = typeof synthese.pointsDistribuesFactures === "number"
+    ? synthese.pointsDistribuesFactures
+    : synthese.pointsDistribues - synthese.valeurBonus;
+  const pointsBonus = typeof synthese.pointsDistribuesBonus === "number"
+    ? synthese.pointsDistribuesBonus
+    : synthese.valeurBonus;
   const valeurPointsAccordes = (synthese.pointsDistribues / 100) * tauxConversion;
   const rabaisAccordes = facturesDetail.reduce((s, f) => s + (f.rabaisApplique ?? 0), 0);
   const coutRabais = promotions.reduce((s, p) => s + (p.coutReel ?? 0), 0);
+  // Masqué entièrement (pas juste à 0 $) quand rien dans les données ne parle de
+  // rabais/codes promo — un 0 $ affiché laisserait croire à un programme de
+  // rabais existant mais inactif ce mois-ci, plutôt qu'à une fonctionnalité
+  // absente pour ce client.
+  const rabaisPresent = facturesDetail.some((f) => (f.rabaisApplique ?? 0) > 0)
+    || promotions.some((p) => (p.coutReel ?? 0) > 0);
   // Sans valeurRachetee, "coût total du programme" ne serait qu'un sous-total
   // partiel présenté comme un total — undefined masque toute la ligne au lieu
   // d'afficher un chiffre trompeur.
@@ -287,25 +333,37 @@ export async function construireRapportHtml(
   const totalFacturesPoints = facturesDetail.reduce((s, f) => s + f.pointsAttribues, 0);
 
   // ── Promotions (section 2) ──────────────────────────────────────────────
-  const promotionsRows = promotions.map((p) => ({
+  // Colonnes affichées seulement si TOUTES les promos du mois portent la donnée
+  // (ex. golf : titre/dates seulement — pas de rabais/coût/revenu par promo).
+  const promoDatesPresentes = promotions.length > 0 && promotions.every((p) => typeof p.dateDebut === "string" && typeof p.dateFin === "string");
+  const promoTypePresent = promotions.length > 0 && promotions.every((p) => typeof p.typeRabais === "string");
+  const promoUtilisationsPresent = promotions.length > 0 && promotions.every((p) => typeof p.reclamations === "number");
+  const promoRevenusPresent = promotions.length > 0 && promotions.every((p) => typeof p.revenusGeneres === "number");
+  const promoCoutPresent = promotions.length > 0 && promotions.every((p) => typeof p.coutReel === "number");
+  const promotionsTriees = [...promotions].sort((a, b) => (a.dateDebut ?? "").localeCompare(b.dateDebut ?? ""));
+  const promotionsRows = promotionsTriees.map((p) => ({
     promo_nom: p.nom,
-    promo_type: p.typeRabais,
-    promo_utilisations: fmtNombre(p.reclamations),
-    promo_revenus: fmtArgent(p.revenusGeneres),
-    promo_cout: fmtArgent(p.coutReel ?? 0),
+    promo_dateDebut: p.dateDebut ?? "",
+    promo_dateFin: p.dateFin ?? "",
+    promo_type: p.typeRabais ?? "",
+    promo_utilisations: typeof p.reclamations === "number" ? fmtNombre(p.reclamations) : "",
+    promo_revenus: typeof p.revenusGeneres === "number" ? fmtArgent(p.revenusGeneres) : "",
+    promo_cout: typeof p.coutReel === "number" ? fmtArgent(p.coutReel) : "",
   }));
   const promotionsPorteeNote = franchiseId
     ? '<p class="mention-portee">Promotions du réseau — ces statistiques couvrent l\'ensemble des franchises.</p>'
     : "";
 
-  // ── Réclamations (section 5) ────────────────────────────────────────────
-  const reclamationsRows = reclamationsDetail.map((r) => ({
-    reclamation_date: r.date,
-    reclamation_recompense: r.recompense,
-    reclamation_franchise: r.franchise,
-    reclamation_points: fmtNombre(r.pointsReclames),
-    reclamation_cout: typeof r.foodCost === "number" && !Number.isNaN(r.foodCost) ? fmtArgent(r.foodCost) : "",
-  }));
+  // ── Réclamations (section 5) — triées par date croissante ───────────────
+  const reclamationsRows = [...reclamationsDetail]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((r) => ({
+      reclamation_date: r.date,
+      reclamation_recompense: r.recompense,
+      reclamation_franchise: r.franchise,
+      reclamation_points: fmtNombre(r.pointsReclames),
+      reclamation_cout: typeof r.foodCost === "number" && !Number.isNaN(r.foodCost) ? fmtArgent(r.foodCost) : "",
+    }));
 
   // ── CSV séparé (détail facture par facture, format machine) ─────────────
   const csvHeader = ["Date", "Franchise", "Montant", "Points attribués", "Code promo", "Promotion liée", "Rabais appliqué"];
@@ -372,6 +430,14 @@ export async function construireRapportHtml(
     reclamationsPresentes: reclamationsDetail.length > 0,
     foodCostPresent,
     valeurRacheteePresente,
+    franchiseColPresent,
+    tauxDefini,
+    rabaisPresent,
+    promoDatesPresentes,
+    promoTypePresent,
+    promoUtilisationsPresent,
+    promoRevenusPresent,
+    promoCoutPresent,
   });
 
   if (facturesMismatchDetecte) {

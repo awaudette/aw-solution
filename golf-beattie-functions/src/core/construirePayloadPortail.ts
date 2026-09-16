@@ -103,15 +103,20 @@ interface Recompense { nom: string; reclamations: number; pointsUtilises: number
 
 interface ComptabiliteFacture { date: string; montant: number; pointsAttribues: number; franchise: string }
 interface ComptabiliteReclamation { date: string; recompense: string; pointsReclames: number; foodCost: number; franchise: string }
+/** Champ minimal — seuls titre/dates existent côté golf (pas de rabais/coûts/revenus suivis
+ *  par promo). `dateDebut`/`dateFin` et les autres champs de ComptabilitePromotion (aw-portail)
+ *  sont optionnels dans le contrat précisément pour ce cas. */
+interface ComptabilitePromotionMoisRef { nom: string; dateDebut: string; dateFin: string }
 interface SyntheseComptable {
   inscriptions: number; revenus: number; membresActifs: number; membresTotal: number;
   notifEnvoyees: number; tauxOuverturePush: number; visites: number;
-  pointsDistribues: number; pointsRachetes: number; bonusAttribues: number; valeurBonus: number;
+  pointsDistribues: number; pointsDistribuesFactures: number; pointsDistribuesBonus: number;
+  pointsRachetes: number; bonusAttribues: number; valeurBonus: number;
 }
 interface SnapshotFinMois { membresTotal: number; revenusTotal: number; visites: number; pointsEnCirculation: number; valeurPointsDistribues: number }
 interface Comptabilite {
   moisRef: string; facturesDetail: ComptabiliteFacture[]; reclamationsDetail: ComptabiliteReclamation[];
-  promotions: never[]; synthese: SyntheseComptable; snapshotFinMois: SnapshotFinMois;
+  promotions: ComptabilitePromotionMoisRef[]; synthese: SyntheseComptable; snapshotFinMois: SnapshotFinMois;
 }
 
 export interface PayloadAnalyticsGlobal {
@@ -367,18 +372,42 @@ export async function construirePayloadPortail(db: Firestore, options: { mainten
     if (j < debutMoisSuivantRef) membresTotalFinMoisRef += 1;
   });
   const visitesMoisRef = new Set(facturesMoisRef.map((f) => `${f.uid}_${f.jour}`)).size;
-  const pointsDistribuesMoisRef = facturesMoisRef.reduce((s, f) => s + f.points, 0) + tirageMoisRef.reduce((s, t) => s + t.gain, 0);
+  const pointsDistribuesFacturesMoisRef = facturesMoisRef.reduce((s, f) => s + f.points, 0);
+  const pointsDistribuesBonusMoisRef = tirageMoisRef.reduce((s, t) => s + t.gain, 0);
+  const pointsDistribuesMoisRef = pointsDistribuesFacturesMoisRef + pointsDistribuesBonusMoisRef;
   const pointsRachetesMoisRef = reclamationsMoisRef.reduce((s, r) => s + r.pointsUtilises, 0);
 
   const facturesCumulFinMois = bruts.factures.filter((f) => f.jour <= finMoisRef);
   const revenusTotalFinMois = facturesCumulFinMois.reduce((s, f) => s + f.montant, 0);
   const visitesCumulFinMois = new Set(facturesCumulFinMois.map((f) => `${f.uid}_${f.jour}`)).size;
 
+  // ── Solde de fin de mois — véritable snapshot au dernier jour de moisFinComplet,
+  // pas le solde ACTUEL (qui inclut tout ce qui s'est passé depuis) : on part du
+  // solde actuel et on annule l'effet de tout ce qui est arrivé APRÈS finMoisRef
+  // (gagné après = à retirer, utilisé après = à rajouter, puisque ces points
+  // n'avaient pas encore été distribués/rachetés au moment du snapshot voulu).
+  const pointsGagnesApresFinMois =
+    bruts.factures.filter((f) => f.jour > finMoisRef).reduce((s, f) => s + f.points, 0) +
+    bruts.tirages.filter((t) => t.jour > finMoisRef).reduce((s, t) => s + t.gain, 0);
+  const pointsUtilisesApresFinMois = bruts.reclamations
+    .filter((r) => r.jour > finMoisRef)
+    .reduce((s, r) => s + r.pointsUtilises, 0);
+  const pointsEnCirculationFinMois = resultat.pointsEnCirculation - pointsGagnesApresFinMois + pointsUtilisesApresFinMois;
+
+  // ── Promotions du mois — seules celles dont Date_debut tombe dans moisFinComplet
+  // (fuseau America/Toronto, déjà résolu dans bruts.promotions), triées par date de
+  // début. Champs minimaux (titre + dates) : aucun rabais/coût/revenu suivi par
+  // promo côté golf — voir ComptabilitePromotionMoisRef ci-dessus.
+  const promotionsMoisRef: ComptabilitePromotionMoisRef[] = bruts.promotions
+    .filter((p) => p.debut >= debutMoisRef && p.debut <= finMoisRef)
+    .map((p) => ({ nom: p.titre, dateDebut: p.debut, dateFin: p.fin }))
+    .sort((a, b) => a.dateDebut.localeCompare(b.dateDebut));
+
   const comptabilite: Comptabilite = {
     moisRef: moisFinComplet,
     facturesDetail,
     reclamationsDetail,
-    promotions: [],
+    promotions: promotionsMoisRef,
     synthese: {
       inscriptions: inscriptionsMoisRef,
       revenus: arrondi2(facturesMoisRef.reduce((s, f) => s + f.montant, 0)),
@@ -388,6 +417,8 @@ export async function construirePayloadPortail(db: Firestore, options: { mainten
       tauxOuverturePush: 0, // aucune donnée d'ouverture — voir avertissement en tête de fichier
       visites: visitesMoisRef,
       pointsDistribues: pointsDistribuesMoisRef,
+      pointsDistribuesFactures: pointsDistribuesFacturesMoisRef,
+      pointsDistribuesBonus: pointsDistribuesBonusMoisRef,
       pointsRachetes: pointsRachetesMoisRef,
       bonusAttribues: tirageMoisRef.length,
       valeurBonus: 0, // aucun taux $/point établi — voir avertissement en tête de fichier
@@ -396,7 +427,7 @@ export async function construirePayloadPortail(db: Firestore, options: { mainten
       membresTotal: membresTotalFinMoisRef,
       revenusTotal: arrondi2(revenusTotalFinMois),
       visites: visitesCumulFinMois,
-      pointsEnCirculation: resultat.pointsEnCirculation, // snapshot ACTUEL, pas historique au dernier jour du mois — voir avertissement en tête de fichier
+      pointsEnCirculation: pointsEnCirculationFinMois, // véritable snapshot au dernier jour de moisFinComplet
       valeurPointsDistribues: 0, // aucun taux $/point établi — voir avertissement en tête de fichier
     },
   };

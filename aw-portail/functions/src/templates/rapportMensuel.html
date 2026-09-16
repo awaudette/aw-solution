@@ -240,20 +240,26 @@
         <tr><td>Points distribués par factures</td><td>{{RESUME_POINTS_FACTURES}}{{RESUME_POINTS_FACTURES_NOTE}}</td></tr>
         <tr><td>Points distribués par bonus</td><td>{{RESUME_POINTS_BONUS}}{{RESUME_POINTS_BONUS_NOTE}}</td></tr>
         <tr><td>Total des points distribués</td><td>{{RESUME_POINTS_TOTAL}}</td></tr>
+        <!-- IF:TAUX_DEFINI -->
         <tr><td>Valeur des points accordés</td><td>{{RESUME_VALEUR_POINTS}}</td></tr>
+        <!-- /IF:TAUX_DEFINI -->
         <tr><td>Points réclamés</td><td>{{RESUME_POINTS_RECLAMES}}</td></tr>
         <tr><td>Récompenses utilisées</td><td>{{RESUME_NB_RECOMPENSES}}</td></tr>
         <!-- IF:VALEUR_RECOMPENSES -->
         <tr><td>Valeur des récompenses</td><td>{{RESUME_VALEUR_RECOMPENSES}}</td></tr>
         <!-- /IF:VALEUR_RECOMPENSES -->
+        <!-- IF:RABAIS_PRESENT -->
         <tr><td>Rabais accordés</td><td>{{RESUME_RABAIS_ACCORDES}}</td></tr>
         <tr><td>Coût des rabais accordés</td><td>{{RESUME_COUT_RABAIS}}</td></tr>
+        <!-- /IF:RABAIS_PRESENT -->
         <!-- IF:COUT_TOTAL -->
         <tr class="ligne-total"><td>Coût total du programme</td><td>{{RESUME_COUT_TOTAL}}</td></tr>
         <!-- /IF:COUT_TOTAL -->
       </tbody>
     </table>
+    <!-- IF:TAUX_DEFINI -->
     <p class="footnote">Valeur des points calculée selon un taux de conversion de {{TAUX_CONVERSION}} $ par tranche de 100 points.</p>
+    <!-- /IF:TAUX_DEFINI -->
   </section>
 
   <!-- IF:SECTION_PROMOTIONS -->
@@ -266,27 +272,29 @@
       <thead>
         <tr>
           <th>Nom</th>
-          <th>Type de rabais</th>
-          <th class="num">Utilisations</th>
-          <th class="num">Revenus attribués</th>
-          <th class="num">Coût des rabais</th>
+          <!-- IF:PROMO_DATES_COL --><th>Date de début</th><th>Date de fin</th><!-- /IF:PROMO_DATES_COL -->
+          <!-- IF:PROMO_TYPE_COL --><th>Type de rabais</th><!-- /IF:PROMO_TYPE_COL -->
+          <!-- IF:PROMO_UTIL_COL --><th class="num">Utilisations</th><!-- /IF:PROMO_UTIL_COL -->
+          <!-- IF:PROMO_REVENUS_COL --><th class="num">Revenus attribués</th><!-- /IF:PROMO_REVENUS_COL -->
+          <!-- IF:PROMO_COUT_COL --><th class="num">Coût des rabais</th><!-- /IF:PROMO_COUT_COL -->
         </tr>
       </thead>
       <tbody>
         <!-- ROW:PROMOTION -->
         <tr>
           <td>{{promo_nom}}</td>
-          <td>{{promo_type}}</td>
-          <td class="num">{{promo_utilisations}}</td>
-          <td class="num">{{promo_revenus}}</td>
-          <td class="num">{{promo_cout}}</td>
+          <!-- IF:PROMO_DATES_COL --><td>{{promo_dateDebut}}</td><td>{{promo_dateFin}}</td><!-- /IF:PROMO_DATES_COL -->
+          <!-- IF:PROMO_TYPE_COL --><td>{{promo_type}}</td><!-- /IF:PROMO_TYPE_COL -->
+          <!-- IF:PROMO_UTIL_COL --><td class="num">{{promo_utilisations}}</td><!-- /IF:PROMO_UTIL_COL -->
+          <!-- IF:PROMO_REVENUS_COL --><td class="num">{{promo_revenus}}</td><!-- /IF:PROMO_REVENUS_COL -->
+          <!-- IF:PROMO_COUT_COL --><td class="num">{{promo_cout}}</td><!-- /IF:PROMO_COUT_COL -->
         </tr>
         <!-- /ROW:PROMOTION -->
       </tbody>
     </table>
     <!-- /IF:PROMOTIONS_PRESENTES -->
     <!-- IF:PROMOTIONS_VIDE -->
-    <p class="etat-vide">Aucune promotion créée ce mois-ci</p>
+    <p class="etat-vide">Aucune promotion lancée ce mois-ci</p>
     <!-- /IF:PROMOTIONS_VIDE -->
   </section>
   <!-- /IF:SECTION_PROMOTIONS -->
@@ -301,7 +309,9 @@
         <tr><td>Points utilisés ce mois</td><td>{{REGISTRE_POINTS_UTILISES}}</td></tr>
         <tr><td>Solde de points à la fin du mois</td><td>{{REGISTRE_SOLDE_FIN}}</td></tr>
         <tr><td>Taux de rachat des points</td><td>{{REGISTRE_TAUX_RACHAT}}</td></tr>
+        <!-- IF:TAUX_DEFINI -->
         <tr class="ligne-total"><td>Passif en points en circulation</td><td>{{REGISTRE_PASSIF_DOLLARS}}</td></tr>
+        <!-- /IF:TAUX_DEFINI -->
       </tbody>
     </table>
   </section>
@@ -353,7 +363,7 @@
         <tr>
           <th>Date</th>
           <th>Récompense</th>
-          <th>Franchise</th>
+          <!-- IF:FRANCHISE_COL --><th>Franchise</th><!-- /IF:FRANCHISE_COL -->
           <th class="num">Points réclamés</th>
           <!-- IF:FOODCOST_COL --><th class="num">Coût réel</th><!-- /IF:FOODCOST_COL -->
         </tr>
@@ -363,7 +373,7 @@
         <tr>
           <td>{{reclamation_date}}</td>
           <td>{{reclamation_recompense}}</td>
-          <td>{{reclamation_franchise}}</td>
+          <!-- IF:FRANCHISE_COL --><td>{{reclamation_franchise}}</td><!-- /IF:FRANCHISE_COL -->
           <td class="num">{{reclamation_points}}</td>
           <!-- IF:FOODCOST_COL --><td class="num">{{reclamation_cout}}</td><!-- /IF:FOODCOST_COL -->
         </tr>

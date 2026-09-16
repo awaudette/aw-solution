@@ -197,14 +197,19 @@ const comptabiliteReclamation: Spec = { object: {
 } };
 
 const comptabilitePromotion: Spec = { object: {
-  nom: "string", periode: "string", typeRabais: "string", reclamations: "number",
-  coutReel: "number", valeurDistribuee: "number", revenusGeneres: "number", roi: "number",
+  nom: "string",
+  dateDebut: { optional: "string" }, dateFin: { optional: "string" },
+  periode: { optional: "string" }, typeRabais: { optional: "string" }, reclamations: { optional: "number" },
+  coutReel: { optional: "number" }, valeurDistribuee: { optional: "number" },
+  revenusGeneres: { optional: "number" }, roi: { optional: "number" },
 } };
 
 const syntheseComptable: Spec = { object: {
   inscriptions: "number", revenus: "number", membresActifs: "number", membresTotal: "number",
   notifEnvoyees: "number", tauxOuverturePush: "number", visites: "number",
-  pointsDistribues: "number", pointsRachetes: "number", valeurRachetee: { optional: "number" },
+  pointsDistribues: "number",
+  pointsDistribuesFactures: { optional: "number" }, pointsDistribuesBonus: { optional: "number" },
+  pointsRachetes: "number", valeurRachetee: { optional: "number" },
   bonusAttribues: "number", valeurBonus: "number",
 } };
 

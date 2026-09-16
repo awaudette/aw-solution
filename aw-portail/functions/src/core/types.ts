@@ -32,13 +32,18 @@ export interface ComptabiliteReclamation {
 
 export interface ComptabilitePromotion {
   nom: string;
-  periode: string;
-  typeRabais: string;
-  reclamations: number;
-  coutReel: number;
-  valeurDistribuee: number;
-  revenusGeneres: number;
-  roi: number;
+  /** "YYYY-MM-DD" — présent chez les clients dont la CF ne suit que titre/dates
+   *  (ex. golf, aucun rabais/coût/revenu de promo suivi). */
+  dateDebut?: string;
+  dateFin?: string;
+  /** Absents chez les mêmes clients — voir dateDebut/dateFin ci-dessus. */
+  periode?: string;
+  typeRabais?: string;
+  reclamations?: number;
+  coutReel?: number;
+  valeurDistribuee?: number;
+  revenusGeneres?: number;
+  roi?: number;
 }
 
 export interface SnapshotFinMois {
@@ -59,6 +64,10 @@ export interface ComptabiliteSynthese {
   tauxOuverturePush: number;
   visites: number;
   pointsDistribues: number;
+  /** Détail factures/bonus du total pointsDistribues ci-dessus — absent chez les
+   *  clients dont la CF ne pousse pas encore ce détail (repli dans genererRapportPdf.ts). */
+  pointsDistribuesFactures?: number;
+  pointsDistribuesBonus?: number;
   pointsRachetes: number;
   valeurRachetee: number;
   bonusAttribues: number;

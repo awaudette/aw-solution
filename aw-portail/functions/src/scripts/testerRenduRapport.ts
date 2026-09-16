@@ -3,11 +3,13 @@
  * Puppeteer. Appelle directement rendreGabaritRapport() (voir
  * core/genererRapportPdf.ts) avec deux jeux de jetons représentatifs :
  *
- *  - golf-beattie/comptable-2026-08 : `promotions` absent du document
- *    source (promotionsChampExiste=false, promotionsRows=[]) — c'est
- *    exactement la condition qui déclenchait "Bloc introuvable : ROW:PROMOTION".
- *  - un rapport Poké Station existant : `promotions` présent et non vide —
- *    vérifie que la section Promotions reste rendue avec ses lignes.
+ *  - golf-beattie/comptable-2026-08 : promotions à 3 champs seulement
+ *    (nom/dateDebut/dateFin), aucun rabais, aucun taux de conversion défini
+ *    — c'est exactement la forme que construirePayloadPortail.ts (golf)
+ *    envoie aujourd'hui.
+ *  - un rapport Poké Station existant : tout présent (rabais, taux, colonnes
+ *    complètes de promotions, food cost, plusieurs franchises) — vérifie que
+ *    rien n'a changé pour ce client.
  *
  * Ni identifiants locaux (aucune credential aw-portail disponible sur ce
  * poste — poke-sync/poke-service-account.json est scopé au projet Firebase
@@ -60,36 +62,56 @@ function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(`ASSERTION ÉCHOUÉE : ${msg}`);
 }
 
-// ── Scénario 1 : golf-beattie/comptable-2026-08 — champ `promotions` absent ──
+// ── Scénario 1 : golf-beattie/comptable-2026-08 — promotions à 3 champs,
+// aucun rabais, aucun taux de conversion défini, un seul établissement ──────
 function testGolfBeattie(): void {
   const { html } = rendreGabaritRapport({
     scalaires: scalairesBase("Club de golf Beattie"),
-    promotionsRows: [],
-    promotionsPresentes: false,
-    promotionsChampExiste: false, // champ absent du document — masque toute la section
+    promotionsRows: [
+      { promo_nom: "100$ de rabais Putter Odyssey", promo_dateDebut: "2026-08-07", promo_dateFin: "2026-09-08", promo_type: "", promo_utilisations: "", promo_revenus: "", promo_cout: "" },
+      { promo_nom: "2 pour 90$", promo_dateDebut: "2026-08-20", promo_dateFin: "2026-09-13", promo_type: "", promo_utilisations: "", promo_revenus: "", promo_cout: "" },
+    ],
+    promotionsPresentes: true,
+    promotionsChampExiste: true,
     joursFactures: [
       { jour_date: "2026-08-15", jour_nbFactures: "42", jour_montantTotal: "2 100,00 $", jour_pointsAttribues: "1 800" },
     ],
     facturesPresentes: true,
     reclamationsRows: [
-      { reclamation_date: "2026-08-10", reclamation_recompense: "10$ de rabais", reclamation_franchise: "Golf Beattie", reclamation_points: "1000", reclamation_cout: "" },
+      { reclamation_date: "2026-08-10", reclamation_recompense: "Cart Gratuit", reclamation_franchise: "Club de golf Beattie", reclamation_points: "2500", reclamation_cout: "" },
     ],
     reclamationsPresentes: true,
-    foodCostPresent: false, // reclamationsDetail sans foodCost — colonne masquée
-    valeurRacheteePresente: true,
+    foodCostPresent: false, // reclamationsDetail sans foodCost > 0 — colonne masquée
+    valeurRacheteePresente: false, // pas de food cost total suivi non plus
+    franchiseColPresent: false, // un seul établissement — colonne masquée
+    tauxDefini: false, // aucun taux de conversion $/point défini
+    rabaisPresent: false, // aucun rabais/code promo dans les données
+    promoDatesPresentes: true, // toutes les promos ont dateDebut/dateFin
+    promoTypePresent: false, // aucune promo n'a de typeRabais
+    promoUtilisationsPresent: false,
+    promoRevenusPresent: false,
+    promoCoutPresent: false,
   });
   assert(!html.includes("Bloc introuvable"), "le HTML ne doit contenir aucune trace d'un jeton non résolu");
   assert(!/<!--\s*(ROW|IF):/.test(html), "aucun marqueur ROW:*/IF:* ne doit subsister dans le HTML final");
-  assert(!html.includes("Promotions"), "SECTION_PROMOTIONS doit être entièrement absente (champ non présent dans le document)");
-  console.log("✅ golf-beattie/comptable-2026-08 (promotions absent) : rendu sans erreur, section Promotions masquée.");
+  assert(html.includes("100$ de rabais Putter Odyssey"), "la section Promotions doit afficher les promos du mois (titre + dates)");
+  assert(html.includes("2026-08-07") && html.includes("2026-09-08"), "les colonnes Date de début/Date de fin doivent être rendues");
+  assert(!html.includes("Type de rabais"), "la colonne Type de rabais doit être masquée (aucune donnée)");
+  assert(!html.includes("Valeur des points accordés"), "masqué : aucun taux de conversion défini");
+  assert(!html.includes("Passif en points en circulation"), "masqué : aucun taux de conversion défini");
+  assert(!html.includes("taux de conversion de"), "footnote de taux masquée");
+  assert(!html.includes("Rabais accordés"), "masqué : aucun rabais dans les données");
+  assert(!html.includes("Coût des rabais accordés"), "masqué : aucun rabais dans les données");
+  assert(!html.includes("Coût réel"), "masqué : aucune réclamation avec foodCost > 0");
+  console.log("✅ golf-beattie/comptable-2026-08 (promotions 3 champs, sans rabais, sans taux) : rendu sans erreur.");
 }
 
-// ── Scénario 2 : rapport Poké Station — `promotions` présent et non vide ────
+// ── Scénario 2 : rapport Poké Station — tout présent, comportement inchangé ─
 function testPokeStation(): void {
   const { html } = rendreGabaritRapport({
     scalaires: scalairesBase("Poké Station — Trois-Rivières"),
     promotionsRows: [
-      { promo_nom: "Rabais rentrée", promo_type: "Pourcentage", promo_utilisations: "58", promo_revenus: "1 740,00 $", promo_cout: "174,00 $" },
+      { promo_nom: "Rabais rentrée", promo_dateDebut: "", promo_dateFin: "", promo_type: "Pourcentage", promo_utilisations: "58", promo_revenus: "1 740,00 $", promo_cout: "174,00 $" },
     ],
     promotionsPresentes: true,
     promotionsChampExiste: true,
@@ -103,11 +125,25 @@ function testPokeStation(): void {
     reclamationsPresentes: true,
     foodCostPresent: true,
     valeurRacheteePresente: true,
+    franchiseColPresent: true, // plusieurs franchises — colonne visible
+    tauxDefini: true,
+    rabaisPresent: true,
+    promoDatesPresentes: false, // Poké n'envoie pas dateDebut/dateFin
+    promoTypePresent: true,
+    promoUtilisationsPresent: true,
+    promoRevenusPresent: true,
+    promoCoutPresent: true,
   });
   assert(!html.includes("Bloc introuvable"), "le HTML ne doit contenir aucune trace d'un jeton non résolu");
   assert(!/<!--\s*(ROW|IF):/.test(html), "aucun marqueur ROW:*/IF:* ne doit subsister dans le HTML final");
   assert(html.includes("Rabais rentrée"), "la section Promotions doit rester présente avec sa ligne (Poké a des promotions ce mois-ci)");
-  console.log("✅ rapport Poké Station (promotions présent) : rendu sans erreur, section Promotions présente avec sa ligne.");
+  assert(html.includes("Type de rabais") && html.includes("Pourcentage"), "colonne Type de rabais toujours affichée pour Poké");
+  assert(html.includes("Valeur des points accordés"), "toujours affiché pour Poké (taux défini)");
+  assert(html.includes("Passif en points en circulation"), "toujours affiché pour Poké (taux défini)");
+  assert(html.includes("Rabais accordés"), "toujours affiché pour Poké (rabais présents)");
+  assert(html.includes("Coût réel"), "toujours affiché pour Poké (food cost présent)");
+  assert(html.includes("Franchise"), "colonne Franchise toujours affichée pour Poké (multi-franchise)");
+  console.log("✅ rapport Poké Station (tout présent) : rendu sans erreur, section Promotions présente avec sa ligne, rien de masqué.");
 }
 
 testGolfBeattie();

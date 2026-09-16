@@ -165,11 +165,11 @@ function Table({ cols, data, csvName, pageSize }: { cols: ColDef[]; data: Row[];
 interface MergedPromo {
   nom:             string;
   code:            string;
-  periode:         string;
-  typeRabais:      string;
-  utilisations:    number;
-  coutReel:        number;
-  revenusGeneres:  number;
+  periode?:        string;
+  typeRabais?:     string;
+  utilisations?:   number;
+  coutReel?:       number;
+  revenusGeneres?: number;
 }
 
 // ─── Bloc Synthèse ────────────────────────────────────────────────────────────
@@ -428,16 +428,25 @@ export default function OngletComptabilite({ franchiseData, franchiseName, rappo
   // Pas de ROI ni de Val. distribuée : ces colonnes sont retirées de l'affichage
   // (gardées dans MergedPromo/l'export Excel). Coût réel à 0 $ affiché en tiret
   // plutôt qu'un montant qui laisse croire à une donnée mesurée.
+  // Certains clients (ex. golf) ne poussent que le nom/les dates de leurs promos
+  // — pas de période/type de rabais/coût/revenus par promo. Colonnes masquées
+  // entièrement plutôt que remplies de tirets si aucune promo du mois n'a la donnée.
+  const promoPeriodeDisponible = mergedPromos.some((p) => typeof p.periode === "string");
+  const promoTypeDisponible = mergedPromos.some((p) => typeof p.typeRabais === "string");
+  const promoCoutDisponible = mergedPromos.some((p) => typeof p.coutReel === "number");
+  const promoRevenusDisponible = mergedPromos.some((p) => typeof p.revenusGeneres === "number");
   const colsPromos: ColDef[] = [
     { header: "Promotion",             key: "nom"                                                              },
     // Colonne "Code" masquée entièrement si la CF cliente ne pousse pas de codes promo
     // (plutôt qu'un tiret sur chaque ligne).
     ...(codesPromoDisponible ? [{ header: "Code", key: "code" }] as ColDef[] : []),
-    { header: "Période",               key: "periode"                                                          },
-    { header: "Type de rabais",        key: "typeRabais"                                                       },
-    { header: "Utilisations totales",  key: "utilisations",    fmt: (v) => fmtNombre(v as number), align: "right" },
-    { header: "Coût réel",             key: "coutReel",        fmt: (v) => (v as number) === 0 ? "—" : fmtArgent(v as number), align: "right" },
-    { header: "Revenus totaux",        key: "revenusGeneres",  fmt: (v) => fmtArgent(v as number), align: "right" },
+    ...(promoPeriodeDisponible ? [{ header: "Période", key: "periode" }] as ColDef[] : []),
+    ...(promoTypeDisponible ? [{ header: "Type de rabais", key: "typeRabais" }] as ColDef[] : []),
+    { header: "Utilisations totales",  key: "utilisations",    fmt: (v) => v != null ? fmtNombre(v as number) : "—", align: "right" },
+    ...(promoCoutDisponible ? [{ header: "Coût réel", key: "coutReel",
+      fmt: (v) => v == null || (v as number) === 0 ? "—" : fmtArgent(v as number), align: "right" } as ColDef] : []),
+    ...(promoRevenusDisponible ? [{ header: "Revenus totaux", key: "revenusGeneres",
+      fmt: (v) => v != null ? fmtArgent(v as number) : "—", align: "right" } as ColDef] : []),
   ];
 
   return (

@@ -309,14 +309,19 @@ export interface ComptabiliteReclamation {
 
 export interface ComptabilitePromotion {
   nom:             string;
-  periode:         string; // "1 juil. – 31 juil. 2026"
-  typeRabais:      string; // "20 % sur facture", "2 pour 1", "Entrée gratuite à l'achat de 20 $"
-  reclamations:    number;
+  /** "YYYY-MM-DD" — présent chez les clients dont la CF ne suit que titre/dates
+   *  (ex. golf, aucun rabais/coût/revenu de promo suivi). */
+  dateDebut?:      string;
+  dateFin?:        string;
+  /** Absents chez les mêmes clients — voir dateDebut/dateFin ci-dessus. */
+  periode?:        string; // "1 juil. – 31 juil. 2026"
+  typeRabais?:     string; // "20 % sur facture", "2 pour 1", "Entrée gratuite à l'achat de 20 $"
+  reclamations?:   number;
   /** Coût réel pour le client (food cost restaurant, valeur article commerce) */
-  coutReel:        number;
-  valeurDistribuee:number;
-  revenusGeneres:  number;
-  roi:             number;
+  coutReel?:       number;
+  valeurDistribuee?:number;
+  revenusGeneres?: number;
+  roi?:            number;
 }
 
 /** Cumulatifs figés au dernier jour du mois — jamais les valeurs du jour courant.
@@ -347,6 +352,11 @@ export interface ComptabiliteFranchise {
     tauxOuverturePush: number; // Phase 3 — portailSyncJob
     visites:           number; // Phase 3 — portailSyncJob
     pointsDistribues:  number; // Phase 3 — portailSyncJob
+    /** Détail factures/bonus du total pointsDistribues ci-dessus — absent chez les
+     *  clients dont la CF ne pousse pas encore ce détail (repli : afficher le
+     *  total seul). */
+    pointsDistribuesFactures?: number;
+    pointsDistribuesBonus?:    number;
     pointsRachetes:    number; // Phase 3 — portailSyncJob
     /** Absent chez les clients dont la CF ne calcule pas encore le food cost des rachats. */
     valeurRachetee?:   number; // Phase 3 — portailSyncJob
@@ -378,6 +388,11 @@ export interface Comptabilite {
     tauxOuverturePush: number;
     visites:           number;
     pointsDistribues:  number;
+    /** Détail factures/bonus du total pointsDistribues ci-dessus — absent chez les
+     *  clients dont la CF ne pousse pas encore ce détail (repli : afficher le
+     *  total seul). */
+    pointsDistribuesFactures?: number;
+    pointsDistribuesBonus?:    number;
     pointsRachetes:    number;
     /** Absent chez les clients dont la CF ne calcule pas encore le food cost des rachats. */
     valeurRachetee?:   number; // food cost total des réclamations
