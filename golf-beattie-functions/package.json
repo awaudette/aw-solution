@@ -8,6 +8,7 @@
     "dry-run": "tsx scripts/dryRun.ts",
     "envoi-manuel": "tsx scripts/envoiManuel.ts",
     "verifier-payload": "tsx scripts/verifierPayload.ts",
+    "rapports-passes": "tsx scripts/rapportsPasses.ts",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"

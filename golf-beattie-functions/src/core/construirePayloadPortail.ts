@@ -62,9 +62,10 @@ import {
   moisPrecedent,
   DATE_LANCEMENT,
   type DonneesBrutes,
+  type ResultatCalculAnalytics,
 } from "./calculerAnalytics";
 
-const SITE_UNIQUE = "Club de golf Beattie"; // site unique — account_id Lightspeed 250755, voir README.md
+export const SITE_UNIQUE = "Club de golf Beattie"; // site unique — account_id Lightspeed 250755, voir README.md
 
 // ─── Types du payload — copie structurelle du contrat AnalyticsGlobal ─────
 // (aw-portail/src/types/analytics.ts, lecture seule). Ne PAS importer ce
@@ -114,7 +115,7 @@ interface SyntheseComptable {
   pointsRachetes: number; bonusAttribues: number; valeurBonus: number;
 }
 interface SnapshotFinMois { membresTotal: number; revenusTotal: number; visites: number; pointsEnCirculation: number; valeurPointsDistribues: number }
-interface Comptabilite {
+export interface Comptabilite {
   moisRef: string; facturesDetail: ComptabiliteFacture[]; reclamationsDetail: ComptabiliteReclamation[];
   promotions: ComptabilitePromotionMoisRef[]; synthese: SyntheseComptable; snapshotFinMois: SnapshotFinMois;
 }
@@ -256,6 +257,123 @@ export interface ResultatConstruction {
   avertissements: string[];
 }
 
+export interface ResultatComptabilite {
+  comptabilite: Comptabilite;
+  avertissements: string[];
+}
+
+/**
+ * Construit le bloc `comptabilite` (contrat AnalyticsGlobal) pour UN mois
+ * calendaire `moisRef` ("YYYY-MM") arbitraire — passé ou "dernier mois clos".
+ *
+ * Extrait de la logique historique de construirePayloadPortail() (voir
+ * scripts/rapportsPasses.ts pour la génération de rapports de mois passés) :
+ * `bruts` (tout l'historique, non borné par "maintenant") et `resultat.
+ * pointsEnCirculation` (snapshot ACTUEL, indépendant de "maintenant") se
+ * généralisent tels quels à n'importe quel `moisRef` passé — le solde de fin
+ * de mois est reconstruit en repartant du solde actuel et en annulant l'effet
+ * de tout ce qui est arrivé APRÈS finMoisRef (gagné après = à retirer, utilisé
+ * après = à rajouter), formule valable quel que soit `moisRef` puisqu'elle ne
+ * dépend que de bornes de dates, jamais de la date d'exécution.
+ */
+export function construireComptabilite(
+  bruts: DonneesBrutes,
+  resultat: Pick<ResultatCalculAnalytics, "pointsEnCirculation">,
+  moisRef: string,
+): ResultatComptabilite {
+  const avertissements: string[] = [];
+  const debutMoisRef = `${moisRef}-01`;
+  const finMoisRef = shiftDateStr(`${moisSuivant(moisRef)}-01`, -1);
+  const debutMoisSuivantRef = `${moisSuivant(moisRef)}-01`;
+  if (moisKey(DATE_LANCEMENT) > moisRef) {
+    avertissements.push(`comptabilite : aucun mois calendaire complet depuis le lancement (${DATE_LANCEMENT}) — moisRef "${moisRef}" est avant le lancement, données à 0`);
+  }
+
+  const facturesMoisRef = bruts.factures.filter((f) => f.jour >= debutMoisRef && f.jour <= finMoisRef);
+  const tirageMoisRef = bruts.tirages.filter((t) => t.jour >= debutMoisRef && t.jour <= finMoisRef);
+  const reclamationsMoisRef = bruts.reclamations.filter((r) => r.jour >= debutMoisRef && r.jour <= finMoisRef);
+  const pushsMoisRef = bruts.pushs.filter((p) => p.jour >= debutMoisRef && p.jour <= finMoisRef);
+
+  const facturesDetail: ComptabiliteFacture[] = facturesMoisRef.map((f) => ({
+    date: f.jour, montant: f.montant, pointsAttribues: f.points, franchise: SITE_UNIQUE,
+  }));
+  const reclamationsDetail: ComptabiliteReclamation[] = reclamationsMoisRef.map((r) => ({
+    date: r.jour, recompense: r.nomRecompense, pointsReclames: r.pointsUtilises, foodCost: 0, franchise: SITE_UNIQUE,
+  }));
+
+  const membresActifsMoisSet = new Set<string>();
+  facturesMoisRef.forEach((f) => membresActifsMoisSet.add(f.uid));
+  tirageMoisRef.forEach((t) => membresActifsMoisSet.add(t.uid));
+  let inscriptionsMoisRef = 0;
+  let membresTotalFinMoisRef = 0;
+  bruts.uidCreated.forEach((j) => {
+    if (j >= debutMoisRef && j <= finMoisRef) inscriptionsMoisRef += 1;
+    if (j < debutMoisSuivantRef) membresTotalFinMoisRef += 1;
+  });
+  const visitesMoisRef = new Set(facturesMoisRef.map((f) => `${f.uid}_${f.jour}`)).size;
+  const pointsDistribuesFacturesMoisRef = facturesMoisRef.reduce((s, f) => s + f.points, 0);
+  const pointsDistribuesBonusMoisRef = tirageMoisRef.reduce((s, t) => s + t.gain, 0);
+  const pointsDistribuesMoisRef = pointsDistribuesFacturesMoisRef + pointsDistribuesBonusMoisRef;
+  const pointsRachetesMoisRef = reclamationsMoisRef.reduce((s, r) => s + r.pointsUtilises, 0);
+
+  const facturesCumulFinMois = bruts.factures.filter((f) => f.jour <= finMoisRef);
+  const revenusTotalFinMois = facturesCumulFinMois.reduce((s, f) => s + f.montant, 0);
+  const visitesCumulFinMois = new Set(facturesCumulFinMois.map((f) => `${f.uid}_${f.jour}`)).size;
+
+  // ── Solde de fin de mois — véritable snapshot au dernier jour de moisRef,
+  // pas le solde ACTUEL (qui inclut tout ce qui s'est passé depuis) : on part du
+  // solde actuel et on annule l'effet de tout ce qui est arrivé APRÈS finMoisRef
+  // (gagné après = à retirer, utilisé après = à rajouter, puisque ces points
+  // n'avaient pas encore été distribués/rachetés au moment du snapshot voulu).
+  const pointsGagnesApresFinMois =
+    bruts.factures.filter((f) => f.jour > finMoisRef).reduce((s, f) => s + f.points, 0) +
+    bruts.tirages.filter((t) => t.jour > finMoisRef).reduce((s, t) => s + t.gain, 0);
+  const pointsUtilisesApresFinMois = bruts.reclamations
+    .filter((r) => r.jour > finMoisRef)
+    .reduce((s, r) => s + r.pointsUtilises, 0);
+  const pointsEnCirculationFinMois = resultat.pointsEnCirculation - pointsGagnesApresFinMois + pointsUtilisesApresFinMois;
+
+  // ── Promotions du mois — seules celles dont Date_debut tombe dans moisRef
+  // (fuseau America/Toronto, déjà résolu dans bruts.promotions), triées par date de
+  // début. Champs minimaux (titre + dates) : aucun rabais/coût/revenu suivi par
+  // promo côté golf — voir ComptabilitePromotionMoisRef ci-dessus.
+  const promotionsMoisRef: ComptabilitePromotionMoisRef[] = bruts.promotions
+    .filter((p) => p.debut >= debutMoisRef && p.debut <= finMoisRef)
+    .map((p) => ({ nom: p.titre, dateDebut: p.debut, dateFin: p.fin }))
+    .sort((a, b) => a.dateDebut.localeCompare(b.dateDebut));
+
+  const comptabilite: Comptabilite = {
+    moisRef,
+    facturesDetail,
+    reclamationsDetail,
+    promotions: promotionsMoisRef,
+    synthese: {
+      inscriptions: inscriptionsMoisRef,
+      revenus: arrondi2(facturesMoisRef.reduce((s, f) => s + f.montant, 0)),
+      membresActifs: membresActifsMoisSet.size,
+      membresTotal: membresTotalFinMoisRef,
+      notifEnvoyees: pushsMoisRef.length,
+      tauxOuverturePush: 0, // aucune donnée d'ouverture — voir avertissement en tête de fichier
+      visites: visitesMoisRef,
+      pointsDistribues: pointsDistribuesMoisRef,
+      pointsDistribuesFactures: pointsDistribuesFacturesMoisRef,
+      pointsDistribuesBonus: pointsDistribuesBonusMoisRef,
+      pointsRachetes: pointsRachetesMoisRef,
+      bonusAttribues: tirageMoisRef.length,
+      valeurBonus: 0, // aucun taux $/point établi — voir avertissement en tête de fichier
+    },
+    snapshotFinMois: {
+      membresTotal: membresTotalFinMoisRef,
+      revenusTotal: arrondi2(revenusTotalFinMois),
+      visites: visitesCumulFinMois,
+      pointsEnCirculation: pointsEnCirculationFinMois, // véritable snapshot au dernier jour de moisRef
+      valeurPointsDistribues: 0, // aucun taux $/point établi — voir avertissement en tête de fichier
+    },
+  };
+
+  return { comptabilite, avertissements };
+}
+
 export async function construirePayloadPortail(db: Firestore, options: { maintenant?: Date } = {}): Promise<ResultatConstruction> {
   const maintenant = options.maintenant ?? new Date();
   const bruts = await chargerDonneesBrutes(db);
@@ -343,94 +461,8 @@ export async function construirePayloadPortail(db: Firestore, options: { mainten
 
   // ── Comptabilité — dernier mois calendaire complet ────────────────────────
   const moisFinComplet = moisPrecedent(moisKey(aujourdHui));
-  const debutMoisRef = `${moisFinComplet}-01`;
-  const finMoisRef = shiftDateStr(`${moisSuivant(moisFinComplet)}-01`, -1);
-  const debutMoisSuivantRef = `${moisSuivant(moisFinComplet)}-01`;
-  if (moisKey(DATE_LANCEMENT) > moisFinComplet) {
-    avertissements.push(`comptabilite : aucun mois calendaire complet depuis le lancement (${DATE_LANCEMENT}) — moisRef "${moisFinComplet}" est avant le lancement, données à 0`);
-  }
-
-  const facturesMoisRef = bruts.factures.filter((f) => f.jour >= debutMoisRef && f.jour <= finMoisRef);
-  const tirageMoisRef = bruts.tirages.filter((t) => t.jour >= debutMoisRef && t.jour <= finMoisRef);
-  const reclamationsMoisRef = bruts.reclamations.filter((r) => r.jour >= debutMoisRef && r.jour <= finMoisRef);
-  const pushsMoisRef = bruts.pushs.filter((p) => p.jour >= debutMoisRef && p.jour <= finMoisRef);
-
-  const facturesDetail: ComptabiliteFacture[] = facturesMoisRef.map((f) => ({
-    date: f.jour, montant: f.montant, pointsAttribues: f.points, franchise: SITE_UNIQUE,
-  }));
-  const reclamationsDetail: ComptabiliteReclamation[] = reclamationsMoisRef.map((r) => ({
-    date: r.jour, recompense: r.nomRecompense, pointsReclames: r.pointsUtilises, foodCost: 0, franchise: SITE_UNIQUE,
-  }));
-
-  const membresActifsMoisSet = new Set<string>();
-  facturesMoisRef.forEach((f) => membresActifsMoisSet.add(f.uid));
-  tirageMoisRef.forEach((t) => membresActifsMoisSet.add(t.uid));
-  let inscriptionsMoisRef = 0;
-  let membresTotalFinMoisRef = 0;
-  bruts.uidCreated.forEach((j) => {
-    if (j >= debutMoisRef && j <= finMoisRef) inscriptionsMoisRef += 1;
-    if (j < debutMoisSuivantRef) membresTotalFinMoisRef += 1;
-  });
-  const visitesMoisRef = new Set(facturesMoisRef.map((f) => `${f.uid}_${f.jour}`)).size;
-  const pointsDistribuesFacturesMoisRef = facturesMoisRef.reduce((s, f) => s + f.points, 0);
-  const pointsDistribuesBonusMoisRef = tirageMoisRef.reduce((s, t) => s + t.gain, 0);
-  const pointsDistribuesMoisRef = pointsDistribuesFacturesMoisRef + pointsDistribuesBonusMoisRef;
-  const pointsRachetesMoisRef = reclamationsMoisRef.reduce((s, r) => s + r.pointsUtilises, 0);
-
-  const facturesCumulFinMois = bruts.factures.filter((f) => f.jour <= finMoisRef);
-  const revenusTotalFinMois = facturesCumulFinMois.reduce((s, f) => s + f.montant, 0);
-  const visitesCumulFinMois = new Set(facturesCumulFinMois.map((f) => `${f.uid}_${f.jour}`)).size;
-
-  // ── Solde de fin de mois — véritable snapshot au dernier jour de moisFinComplet,
-  // pas le solde ACTUEL (qui inclut tout ce qui s'est passé depuis) : on part du
-  // solde actuel et on annule l'effet de tout ce qui est arrivé APRÈS finMoisRef
-  // (gagné après = à retirer, utilisé après = à rajouter, puisque ces points
-  // n'avaient pas encore été distribués/rachetés au moment du snapshot voulu).
-  const pointsGagnesApresFinMois =
-    bruts.factures.filter((f) => f.jour > finMoisRef).reduce((s, f) => s + f.points, 0) +
-    bruts.tirages.filter((t) => t.jour > finMoisRef).reduce((s, t) => s + t.gain, 0);
-  const pointsUtilisesApresFinMois = bruts.reclamations
-    .filter((r) => r.jour > finMoisRef)
-    .reduce((s, r) => s + r.pointsUtilises, 0);
-  const pointsEnCirculationFinMois = resultat.pointsEnCirculation - pointsGagnesApresFinMois + pointsUtilisesApresFinMois;
-
-  // ── Promotions du mois — seules celles dont Date_debut tombe dans moisFinComplet
-  // (fuseau America/Toronto, déjà résolu dans bruts.promotions), triées par date de
-  // début. Champs minimaux (titre + dates) : aucun rabais/coût/revenu suivi par
-  // promo côté golf — voir ComptabilitePromotionMoisRef ci-dessus.
-  const promotionsMoisRef: ComptabilitePromotionMoisRef[] = bruts.promotions
-    .filter((p) => p.debut >= debutMoisRef && p.debut <= finMoisRef)
-    .map((p) => ({ nom: p.titre, dateDebut: p.debut, dateFin: p.fin }))
-    .sort((a, b) => a.dateDebut.localeCompare(b.dateDebut));
-
-  const comptabilite: Comptabilite = {
-    moisRef: moisFinComplet,
-    facturesDetail,
-    reclamationsDetail,
-    promotions: promotionsMoisRef,
-    synthese: {
-      inscriptions: inscriptionsMoisRef,
-      revenus: arrondi2(facturesMoisRef.reduce((s, f) => s + f.montant, 0)),
-      membresActifs: membresActifsMoisSet.size,
-      membresTotal: membresTotalFinMoisRef,
-      notifEnvoyees: pushsMoisRef.length,
-      tauxOuverturePush: 0, // aucune donnée d'ouverture — voir avertissement en tête de fichier
-      visites: visitesMoisRef,
-      pointsDistribues: pointsDistribuesMoisRef,
-      pointsDistribuesFactures: pointsDistribuesFacturesMoisRef,
-      pointsDistribuesBonus: pointsDistribuesBonusMoisRef,
-      pointsRachetes: pointsRachetesMoisRef,
-      bonusAttribues: tirageMoisRef.length,
-      valeurBonus: 0, // aucun taux $/point établi — voir avertissement en tête de fichier
-    },
-    snapshotFinMois: {
-      membresTotal: membresTotalFinMoisRef,
-      revenusTotal: arrondi2(revenusTotalFinMois),
-      visites: visitesCumulFinMois,
-      pointsEnCirculation: pointsEnCirculationFinMois, // véritable snapshot au dernier jour de moisFinComplet
-      valeurPointsDistribues: 0, // aucun taux $/point établi — voir avertissement en tête de fichier
-    },
-  };
+  const { comptabilite, avertissements: avertissementsComptabilite } = construireComptabilite(bruts, resultat, moisFinComplet);
+  avertissements.push(...avertissementsComptabilite);
 
   const payload: PayloadAnalyticsGlobal = {
     periode: { dateDonnees: hier, derniereSync: resultat.genereLe },
