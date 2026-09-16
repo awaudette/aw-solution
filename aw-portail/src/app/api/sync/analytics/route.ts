@@ -15,6 +15,15 @@
  *
  * Idempotent : chaque écriture cible un id déterministe (set, jamais add), donc
  * recevoir deux fois la même nuit écrase avec la même donnée plutôt que de dupliquer.
+ *
+ * Champ optionnel `moisRapport` ("AAAA-MM") — rejeu d'un mois comptable passé :
+ * quand présent, l'authentification et la validation du payload restent
+ * IDENTIQUES (le corps doit toujours contenir un `global` conforme au contrat
+ * complet AnalyticsGlobal), mais les écritures sur analytics/global et
+ * analytics/{franchiseId} sont SAUTÉES — seul `rapports/comptable-{moisRapport}`
+ * (+ variantes franchise, + syncLogs) est écrit. `moisRapport` doit être
+ * strictement antérieur au mois en cours (refusé en 400 sinon), pour ne jamais
+ * pouvoir écraser accidentellement le mois clos courant via ce chemin.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -30,6 +39,7 @@ interface SyncPayload {
   clientId: string;
   global: AnalyticsGlobal;
   franchises?: Record<string, AnalyticsFranchise>;
+  moisRapport?: string; // "AAAA-MM" — voir docstring en tête de fichier
 }
 
 /** Convertit periode.derniereSync (chaîne ISO reçue en JSON) en Date pour Firestore. */
@@ -97,6 +107,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Payload invalide", details: errors }, { status: 400 });
   }
 
+  // ── 3bis. moisRapport optionnel — rejeu d'un mois comptable passé ──────────
+  // Toujours "AAAA-MM" et strictement antérieur au mois en cours (comparaison
+  // lexicographique sur la date UTC du serveur — suffisant pour un contrôle
+  // anti-écrasement, pas une frontière de fuseau exacte).
+  const moisRapportRaw = (body as Record<string, unknown>).moisRapport;
+  let moisRapport: string | null = null;
+  if (moisRapportRaw !== undefined) {
+    if (typeof moisRapportRaw !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(moisRapportRaw)) {
+      return NextResponse.json({ error: "moisRapport invalide — format attendu AAAA-MM" }, { status: 400 });
+    }
+    const moisActuel = new Date().toISOString().slice(0, 7);
+    if (moisRapportRaw >= moisActuel) {
+      return NextResponse.json(
+        { error: `moisRapport doit être strictement antérieur au mois en cours (${moisActuel})` },
+        { status: 400 },
+      );
+    }
+    moisRapport = moisRapportRaw;
+  }
+
   const payload = body as SyncPayload;
   const franchises = payload.franchises ?? {};
   const dateDonnees = payload.global.periode?.dateDonnees;
@@ -106,20 +136,23 @@ export async function POST(req: NextRequest) {
     const batch = adminDb.batch();
     const clientRef = adminDb.collection("clients").doc(clientId);
 
-    // clients/{clientId}/analytics/global
-    batch.set(clientRef.collection("analytics").doc("global"), withDerniereSyncDate(payload.global));
-    documentsEcrits++;
-
-    // clients/{clientId}/analytics/{franchiseId}
-    for (const [franchiseId, fdata] of Object.entries(franchises)) {
-      batch.set(clientRef.collection("analytics").doc(franchiseId), withDerniereSyncDate(fdata));
+    if (moisRapport === null) {
+      // clients/{clientId}/analytics/global
+      batch.set(clientRef.collection("analytics").doc("global"), withDerniereSyncDate(payload.global));
       documentsEcrits++;
+
+      // clients/{clientId}/analytics/{franchiseId}
+      for (const [franchiseId, fdata] of Object.entries(franchises)) {
+        batch.set(clientRef.collection("analytics").doc(franchiseId), withDerniereSyncDate(fdata));
+        documentsEcrits++;
+      }
     }
 
     // Documents mensuels de comptabilité (archive historique — analytics/global.comptabilite
     // ne garde que le dernier mois clos ; l'onglet Historique du portail lit ces documents
     // pour afficher tous les mois passés). Id déterministe = idempotent.
-    const moisRef = payload.global.comptabilite.moisRef; // "YYYY-MM"
+    // moisRapport (rejeu d'un mois passé) prime sur le moisRef porté par le payload lui-même.
+    const moisRef = moisRapport ?? payload.global.comptabilite.moisRef; // "YYYY-MM"
     const [anneeStr, moisStr] = moisRef.split("-");
     const annee = Number(anneeStr);
     const mois = Number(moisStr);
