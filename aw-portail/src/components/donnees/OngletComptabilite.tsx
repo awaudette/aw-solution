@@ -368,7 +368,10 @@ export default function OngletComptabilite({ franchises, franchiseData, franchis
     [donneesGlobalMois, franchiseData],
   );
   const reclams = useMemo(
-    () => filterFranchise(donneesGlobalMois?.reclamationsDetail ?? []),
+    // Triées par date croissante (plus ancien → plus récent) par défaut — l'utilisateur
+    // peut toujours re-trier en cliquant sur une colonne (voir Table.toggleSort).
+    () => [...filterFranchise(donneesGlobalMois?.reclamationsDetail ?? [])]
+      .sort((a, b) => a.date.localeCompare(b.date)),
     [donneesGlobalMois, franchiseData],
   );
 
@@ -429,7 +432,10 @@ export default function OngletComptabilite({ franchises, franchiseData, franchis
   const factureCodePromoDisponible     = factures.some((f) => typeof f.codePromo === "string");
   const facturePromotionLieeDisponible = factures.some((f) => typeof f.promotionLiee === "string");
   const factureRabaisDisponible        = factures.some((f) => typeof f.rabaisApplique === "number");
-  const reclamFoodCostDisponible       = reclams.some((r) => typeof r.foodCost === "number");
+  // Masquée si aucune ligne du mois n'a un food cost > 0 (absent, ou 0 partout) —
+  // même logique que les colonnes conditionnelles ci-dessus, plutôt qu'une colonne
+  // remplie de "0,00 $"/tirets sans valeur informative.
+  const reclamFoodCostDisponible       = reclams.some((r) => typeof r.foodCost === "number" && r.foodCost > 0);
   const colsFactures: ColDef[] = [
     { header: "Date",             key: "date"                                                                          },
     ...(isMultiFranchise ? [{ header: "Franchise", key: "franchise" }] as ColDef[] : []),
