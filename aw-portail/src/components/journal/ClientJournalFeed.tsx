@@ -58,7 +58,7 @@ function formatTimeFr(ts: Timestamp): string {
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
 
-export function ClientJournalFeed({ clientId }: { clientId: string }) {
+export function ClientJournalFeed({ clientId, highlightEntryId }: { clientId: string; highlightEntryId?: string }) {
   const [entries,  setEntries]  = useState<JournalEntry[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -119,7 +119,13 @@ export function ClientJournalFeed({ clientId }: { clientId: string }) {
         </div>
       )}
       {entries.map(entry => (
-        <JournalCard key={entry.id} entry={entry} clientId={clientId} onImageClick={setLightbox} />
+        <JournalCard
+          key={entry.id}
+          entry={entry}
+          clientId={clientId}
+          onImageClick={setLightbox}
+          highlight={!!highlightEntryId && entry.id === highlightEntryId}
+        />
       ))}
     </div>
   );
@@ -127,10 +133,12 @@ export function ClientJournalFeed({ clientId }: { clientId: string }) {
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
 
-function JournalCard({ entry, clientId, onImageClick }: {
+function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
   entry: JournalEntry;
   clientId: string;
   onImageClick: (url: string) => void;
+  /** Vrai si cette entrée est visée par ?entryId= (lien "Voir" d'une notif) — force l'ouverture et scroll dans la vue. */
+  highlight?: boolean;
 }) {
   const [conversation,   setConversation]   = useState<JournalMessage[]>([]);
   const [selectedAction, setSelectedAction] = useState<Exclude<JournalStatut, "en_attente"> | null>(null);
@@ -141,9 +149,20 @@ function JournalCard({ entry, clientId, onImageClick }: {
   const [sendingReply,   setSendingReply]   = useState(false);
   const [convOpen,       setConvOpen]       = useState(false);
   const [isPortrait,     setIsPortrait]     = useState<boolean | null>(null);
-  const [isExpanded,     setIsExpanded]     = useState(entry.statut !== "approuve");
+  const [isExpanded,     setIsExpanded]     = useState(highlight || entry.statut !== "approuve");
   const prevConvLen = useRef(0);
   const prevStatut  = useRef(entry.statut);
+  const cardRef     = useRef<HTMLDivElement>(null);
+
+  /* Ciblée par ?entryId= : s'assurer qu'elle est visible même si déjà approuvée. */
+  useEffect(() => {
+    if (highlight) setIsExpanded(true);
+  }, [highlight]);
+
+  /* Scroll jusqu'à l'entrée ciblée par la notif. */
+  useEffect(() => {
+    if (highlight) cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlight]);
 
   /* Detect portrait/landscape from first image */
   useEffect(() => {
@@ -337,7 +356,14 @@ function JournalCard({ entry, clientId, onImageClick }: {
 
   /* ── Full card view ─────────────────────────────────────────────────── */
   return (
-    <div style={{ background: "#fff", border: "1px solid #F3F4F6", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+    <div
+      ref={cardRef}
+      style={{
+        background: "#fff", borderRadius: 16, overflow: "hidden",
+        border: highlight ? "1px solid #93C5FD" : "1px solid #F3F4F6",
+        boxShadow: highlight ? "0 0 0 3px rgba(3,98,227,0.25)" : "0 1px 3px rgba(0,0,0,0.06)",
+      }}
+    >
 
       {/* Green header strip when expanded+approved */}
       {entry.statut === "approuve" && !showButtons && (

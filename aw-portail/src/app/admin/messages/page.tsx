@@ -8,7 +8,7 @@ import {
   addDoc, Timestamp, doc, getDoc, writeBatch, getDocs, updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { markActionCompleteFor } from "@/lib/notifications";
+import { markActionCompleteFor, markNotifsReadFor } from "@/lib/notifications";
 import {
   Search, MessageSquare, Send, ExternalLink, ChevronDown,
   CheckCircle, Bell, CalendarDays,
@@ -132,6 +132,9 @@ function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc
       await addDoc(collection(db, "clients", clientId, "messages"), {
         texte: msg, auteur: "AW Solution", auteurRole: "admin", date: now, lu: false,
       });
+      // L'admin vient de répondre — la notif "nouveau_message" qui l'a amené
+      // ici n'a plus lieu d'être affichée.
+      markNotifsReadFor({ clientId, type: "nouveau_message", destinataire: "admin" }).catch(() => {});
       if (client.courriel) {
         fetch("/api/email", {
           method: "POST", headers: { "Content-Type": "application/json" },

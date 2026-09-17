@@ -9,7 +9,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, functions, storage } from "@/lib/firebase";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, markNotifsReadFor } from "@/lib/notifications";
 import {
   Dialog,
   DialogContent,
@@ -439,17 +439,9 @@ function AdminClientDetailContent() {
         await msgBatch.commit();
       }
 
-      // Marquer les notifications "nouveau_message" de ce client comme lues
-      // (sous-collection clients/{id}/notifs, filtre en JS)
-      const notifSnap = await getDocs(collection(db, "clients", id, "notifs"));
-      const unreadNotifs = notifSnap.docs.filter(
-        (d) => d.data().type === "nouveau_message" && d.data().lu === false,
-      );
-      if (unreadNotifs.length > 0) {
-        const batch = writeBatch(db);
-        unreadNotifs.forEach((d) => batch.update(d.ref, { lu: true }));
-        await batch.commit();
-      }
+      // Marquer les notifications "nouveau_message" destinées à l'admin
+      // comme lues — même comportement que la réponse depuis /admin/messages.
+      await markNotifsReadFor({ clientId: id, type: "nouveau_message", destinataire: "admin" });
 
       fetch("/api/email", {
         method: "POST",

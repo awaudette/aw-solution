@@ -38,7 +38,10 @@ export function CardNotifications({ clientId, activite }: CardNotificationsProps
   const router = useRouter();
   const [page, setPage] = useState(0);
 
-  const unread = activite.filter((n) => !n.lu).length;
+  // activite ne contient déjà que des notifications non lues (une notif
+  // marquée lue disparaît de la liste) — le badge compte donc simplement
+  // ce qui est affiché.
+  const unread = activite.length;
   const pages  = Math.ceil(activite.length / PAGE_SIZE);
   const paged  = activite.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
@@ -68,7 +71,6 @@ export function CardNotifications({ clientId, activite }: CardNotificationsProps
               <div key={item.id}>
                 <div style={{
                   display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0",
-                  opacity: item.lu ? 0.5 : 1,
                 }}>
                   <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{cfg.emoji}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>

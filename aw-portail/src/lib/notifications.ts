@@ -182,6 +182,37 @@ export async function markActionCompleteFor(params: {
   await batch.commit();
 }
 
+/**
+ * Marque comme lues toutes les notifications d'un type donné (et,
+ * optionnellement, d'un destinataire donné) pour un client.
+ *
+ * Usage : marquer les notifications "nouveau_message" côté admin comme lues
+ * dès que l'admin répond — peu importe depuis quelle page (/admin/messages
+ * ou /admin/clients/{id}) il répond, le résultat doit être identique.
+ *
+ * Utilise une seule clause where (clientId) pour éviter les index composés.
+ * Le filtrage sur type et destinataire se fait en JS.
+ */
+export async function markNotifsReadFor(params: {
+  clientId:     string;
+  type:         string;
+  destinataire?: "admin" | "client";
+}): Promise<void> {
+  const snap = await getDocs(notifCol(params.clientId));
+  const toUpdate = snap.docs.filter((d) => {
+    const data = d.data();
+    return (
+      data.type === params.type &&
+      !data.lu &&
+      (!params.destinataire || data.destinataire === params.destinataire)
+    );
+  });
+  if (toUpdate.length === 0) return;
+  const batch = writeBatch(db);
+  toUpdate.forEach((d) => batch.update(d.ref, { lu: true }));
+  await batch.commit();
+}
+
 // ─── Config d'affichage par type ──────────────────────────────────────────────
 
 export interface NotifStyle {

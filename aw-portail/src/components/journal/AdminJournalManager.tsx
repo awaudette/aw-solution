@@ -69,7 +69,7 @@ function NewEntryForm({ clientId, onClose }: { clientId: string; onClose: () => 
         imageUrls.push(await getDownloadURL(snap.ref));
       }
 
-      await addDoc(collection(db, "clients", clientId, "journal"), {
+      const journalRef = await addDoc(collection(db, "clients", clientId, "journal"), {
         titre:             titre.trim(),
         description:       description.trim(),
         etape,
@@ -94,7 +94,7 @@ function NewEntryForm({ clientId, onClose }: { clientId: string; onClose: () => 
         type: "nouveau_rapport", destinataire: "client",
         clientId, clientNom, auteurRole: "admin",
         description: `Nouvelle mise à jour dans votre journal : "${titre.trim()}" — veuillez l'approuver.`,
-        lien: `/client/${clientId}/accueil`,
+        lien: `/client/${clientId}/roadmap?tab=journal&entryId=${journalRef.id}`,
         actionRequise: true,   // client doit approuver / refuser / demander modification
       });
 

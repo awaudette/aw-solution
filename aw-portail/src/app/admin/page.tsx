@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   collection, onSnapshot, Timestamp,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import {
   markNotificationRead, markActionDone, getNotifStyle,
   type NotificationDoc,
@@ -90,13 +91,17 @@ export default function AdminDashboard() {
   // + une subscription fixe sur notifs_internes (tâches "À faire" sans client lié).
   // Évite une collection top-level pour les notifications liées à un client.
   useEffect(() => {
-    const myUid = auth.currentUser?.uid ?? null;
+    // Auth se résout de façon asynchrone — myUid doit rester à jour même si
+    // cet effet tourne avant que auth.currentUser soit peuplé, sinon les
+    // notifications avec destinataireUid restent invisibles jusqu'au
+    // prochain changement de `clients`.
+    let myUid: string | null = auth.currentUser?.uid ?? null;
 
-    // Une notification sans destinataireUid se comporte exactement comme
-    // avant (visible par tout admin) ; avec destinataireUid, seul ce membre
-    // du personnel précis la voit.
-    function visiblePourMoi(n: NotificationDoc): boolean {
-      return n.destinataire === "admin" && !n.lu && (!n.destinataireUid || n.destinataireUid === myUid);
+    // Notification destinée à l'admin, non lue (le filtrage par
+    // destinataireUid se fait dans recalc(), pas ici, pour rester réactif
+    // aux changements de myUid sans avoir à ré-abonner les listeners).
+    function estAdminNonLu(n: NotificationDoc): boolean {
+      return n.destinataire === "admin" && !n.lu;
     }
 
     // Map clé (clientId ou "_internes") → notifications non lues destinées à l'admin
@@ -106,10 +111,22 @@ export default function AdminDashboard() {
     function recalc() {
       const merged = Array.from(notifMap.values())
         .flat()
+        // Une notification sans destinataireUid se comporte exactement
+        // comme avant (visible par tout admin) ; avec destinataireUid,
+        // seul ce membre du personnel précis la voit.
+        .filter((n) => !n.destinataireUid || n.destinataireUid === myUid)
         .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
       setNotifPage(0);
       setNotifications(merged);
     }
+
+    // Recalcule dès que l'état d'auth se résout ou change (ex: connexion
+    // après un rechargement de page où auth.currentUser était encore null).
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      myUid = user?.uid ?? null;
+      recalc();
+    });
+    unsubs.push(unsubAuth);
 
     // Notifications internes (pas de client lié — ex. tâches À faire)
     const unsubInternes = onSnapshot(collection(db, "notifs_internes"), (snap) => {
@@ -132,7 +149,7 @@ export default function AdminDashboard() {
             destinataireUid: data.destinataireUid  ?? undefined,
           } as NotificationDoc;
         })
-        .filter(visiblePourMoi);
+        .filter(estAdminNonLu);
       notifMap.set("_internes", internes);
       recalc();
     });
@@ -162,7 +179,7 @@ export default function AdminDashboard() {
                   destinataireUid: data.destinataireUid  ?? undefined,
                 } as NotificationDoc;
               })
-              .filter(visiblePourMoi);
+              .filter(estAdminNonLu);
 
             notifMap.set(c.id, clientNotifs);
             recalc();

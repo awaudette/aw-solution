@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   doc, getDoc, updateDoc, onSnapshot, addDoc, setDoc, Timestamp, collection,
 } from "firebase/firestore";
@@ -104,12 +104,19 @@ const CSS = `
 `;
 
 /* ── Page ───────────────────────────────────────────────────────────────── */
-export default function RoadmapPage({ params }: { params: Promise<{ clientId: string }> }) {
-  const { clientId } = use(params);
+function RoadmapPageInner() {
+  const { clientId } = useParams() as { clientId: string };
+  const searchParams = useSearchParams();
   const { roadmap, loading } = useRoadmapData(clientId);
   const router = useRouter();
 
-  const [activeTab,      setActiveTab]      = useState<"progression" | "journal">("progression");
+  // Lien d'une notif "nouveau_rapport" (ou autre) : ?tab=journal&entryId=...
+  // ouvre directement l'onglet Journal sur l'entrée visée.
+  const tabParam   = searchParams.get("tab");
+  const entryIdParam = searchParams.get("entryId") ?? undefined;
+  const [activeTab,      setActiveTab]      = useState<"progression" | "journal">(
+    tabParam === "journal" ? "journal" : "progression",
+  );
   const [tooltip,        setTooltip]        = useState<string | null>(null);
   const [blocageHover,   setBlocageHover]   = useState<string | null>(null);
   const [disabledHover,  setDisabledHover]  = useState<string | null>(null);
@@ -387,7 +394,7 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
         {/* ── Journal tab ── */}
         {activeTab === "journal" && (
           <div data-tour-id="roadmap-journal">
-            <ClientJournalFeed clientId={clientId} />
+            <ClientJournalFeed clientId={clientId} highlightEntryId={entryIdParam} />
           </div>
         )}
 
@@ -843,6 +850,14 @@ export default function RoadmapPage({ params }: { params: Promise<{ clientId: st
         )}
       </div>
     </div>
+  );
+}
+
+export default function RoadmapPage() {
+  return (
+    <Suspense>
+      <RoadmapPageInner />
+    </Suspense>
   );
 }
 

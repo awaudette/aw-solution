@@ -148,7 +148,8 @@ export function useClientData(clientId: string) {
               destinataire:    data.destinataire     ?? "client",
             };
           })
-          .filter((n) => n.destinataire === "client")
+          // Une notification marquée lue (crochet) disparaît de la liste.
+          .filter((n) => n.destinataire === "client" && !n.lu)
           .sort((a, b) => b.date.getTime() - a.date.getTime());
         setActivite(items);
       }

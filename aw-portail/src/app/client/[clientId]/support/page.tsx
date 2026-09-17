@@ -202,7 +202,7 @@ function MessagerieBloc({ clientId, client }: { clientId: string; client: { nom:
         type: "nouveau_message", destinataire: "admin",
         clientId, clientNom: client.nom, auteurRole: "client",
         description: `Nouveau message de ${client.nom} : "${msg.slice(0, 80)}${msg.length > 80 ? "…" : ""}"`,
-        lien: `/admin/messages`,
+        lien: `/admin/messages?clientId=${clientId}&tab=messages`,
       });
       fetch("/api/email", {
         method: "POST",
