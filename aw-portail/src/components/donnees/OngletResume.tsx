@@ -322,7 +322,7 @@ export default function OngletResume({ global, franchiseData, alertes, isPrestig
               </div>
               <div style={{ display: "flex", gap: 16 }}>
                 {[
-                  { label: "Visites", color: ACCENT,    ratio: p30v.variations.membresActifs },
+                  { label: "Membres actifs", color: ACCENT,    ratio: p30v.variations.membresActifs },
                   { label: "Revenus", color: "#eb6834", ratio: p30v.variations.revenus },
                 ].map(({ label, color, ratio }) => (
                   <div key={label} style={{ fontSize: 12, color: "#6B7280", display: "flex", alignItems: "center", gap: 4 }}>
