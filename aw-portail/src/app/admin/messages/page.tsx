@@ -17,7 +17,7 @@ import { useRequireSection, useAdminAccess } from "@/components/admin/AdminAcces
 import { useAdminSidebarExpanded } from "@/components/layout/AdminSidebarContext";
 import { FichierPicker } from "@/components/ui/FichierPicker";
 import { FichiersJoints } from "@/components/ui/FichiersJoints";
-import { uploaderFichiersJoints, supprimerFichierJoint, type FichierJoint } from "@/lib/attachments";
+import { uploaderFichiersJoints, supprimerFichierJoint, estFichierIntrouvable, type FichierJoint } from "@/lib/attachments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -120,7 +120,15 @@ function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc
   }
 
   async function handleSupprimerFichier(m: Msg, f: FichierJoint) {
-    try { await supprimerFichierJoint(f.storagePath); } catch { /* déjà supprimé, ou non autorisé */ }
+    try {
+      await supprimerFichierJoint(f.storagePath);
+    } catch (err) {
+      if (!estFichierIntrouvable(err)) {
+        setAttachError("Impossible de supprimer le fichier. Réessayez plus tard.");
+        return;
+      }
+      // Déjà supprimé côté Storage — on retire quand même la référence.
+    }
     await updateDoc(doc(db, "clients", clientId, "messages", m.id), {
       fichiers: (m.fichiers ?? []).filter(x => x.storagePath !== f.storagePath),
     });

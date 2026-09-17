@@ -54,6 +54,13 @@ export interface NotificationDoc {
   actionRequise: boolean;
   actionCompletee: boolean;
   /**
+   * Vrai dès que le destinataire a cliqué "Voir" au moins une fois — persisté
+   * pour que le crochet reste actif ensuite, y compris sur un autre appareil
+   * (Partie 3D). Indépendant de `lu` : `lu` retire la notification de la
+   * liste, `vu` ne fait que débloquer le crochet quand actionRequise est vrai.
+   */
+  vu: boolean;
+  /**
    * Optionnel — cible un membre du personnel précis (uid) plutôt que
    * "n'importe quel admin". Absent partout ailleurs dans le système : son
    * absence reproduit exactement le comportement actuel (visible par tout
@@ -85,6 +92,7 @@ async function writeOne(
     lu:               false,
     actionRequise:    input.actionRequise ?? false,
     actionCompletee:  false,
+    vu:               false,
   });
 }
 
@@ -137,6 +145,15 @@ export async function markActionDone(notifId: string, clientId: string | null): 
     actionCompletee: true,
     lu:              true,
   });
+}
+
+/**
+ * Marque une notification comme "vue" — appelé au clic sur "Voir". Persisté
+ * dans le document pour que le crochet reste actif ensuite, y compris après
+ * un changement d'appareil (Partie 3D). N'affecte ni `lu` ni `actionCompletee`.
+ */
+export async function markNotificationVu(notifId: string, clientId: string | null): Promise<void> {
+  await updateDoc(notifRef(notifId, clientId), { vu: true });
 }
 
 /**

@@ -36,8 +36,35 @@ function AnalyseLabel({ color, children }: { color: string; children: React.Reac
   );
 }
 
+// ─── Téléchargement réel du PDF ────────────────────────────────────────────────
+// L'attribut `download` seul ne force pas le téléchargement pour une URL
+// Firebase Storage cross-origin (le navigateur suit l'attribut uniquement en
+// same-origin) — il faut récupérer le fichier puis déclencher l'enregistrement
+// depuis un blob local.
+async function telechargerPdf(url: string, nomFichier: string, setDownloading: (v: boolean) => void) {
+  setDownloading(true);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Téléchargement impossible");
+    const blob    = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = nomFichier;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } finally {
+    setDownloading(false);
+  }
+}
+
 // ─── Carte rapport ────────────────────────────────────────────────────────────
 function RapportCard({ r }: { r: RapportDoc }) {
+  const [downloading, setDownloading] = useState(false);
   const col     = TYPE_COLOR[r.type] ?? "#888780";
   const genDate = r.generatedAt.toLocaleDateString("fr-CA", {
     day: "numeric", month: "long", year: "numeric",
@@ -88,16 +115,22 @@ function RapportCard({ r }: { r: RapportDoc }) {
           </button>
         )}
         {r.pdfUrl && (
-          <a
-            href={r.pdfUrl} download target="_blank" rel="noopener noreferrer"
+          <button
+            onClick={() => telechargerPdf(
+              r.pdfUrl!,
+              `${TYPE_LABEL[r.type] ?? r.type}-${MOIS_FR[r.mois]}-${r.annee}.pdf`,
+              setDownloading,
+            )}
+            disabled={downloading}
             style={{
               padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-              background: "white", color: col, border: `1px solid ${col}`, cursor: "pointer",
-              textDecoration: "none", display: "inline-flex", alignItems: "center",
+              background: "white", color: col, border: `1px solid ${col}`,
+              cursor: downloading ? "wait" : "pointer",
+              display: "inline-flex", alignItems: "center",
             }}
           >
-            ↓ PDF
-          </a>
+            {downloading ? "Téléchargement…" : "↓ PDF"}
+          </button>
         )}
       </div>
 

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
-  doc, getDoc, updateDoc, onSnapshot, addDoc, setDoc, Timestamp, collection,
+  doc, getDoc, updateDoc, onSnapshot, setDoc, Timestamp, collection,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createNotification } from "@/lib/notifications";
@@ -224,10 +224,13 @@ function RoadmapPageInner() {
       );
       await updateDoc(doc(db, "clients", clientId, "roadmap", "main"), { etapes: updatedEtapes });
 
-      /* Auto-messages */
-      await addDoc(collection(db, "clients", clientId, "messages"), {
-        texte: `Rencontre confirmée pour le ${label}. Vous recevrez un lien de connexion sous peu.`,
-        auteur: "AW Solution", auteurRole: "admin", date: now, lu: false,
+      /* Auto-message — écrit côté serveur (SDK Admin) : depuis la Partie 4A,
+         le client ne peut plus créer lui-même un message auteurRole "admin"
+         (voir /api/client/[clientId]/messages-systeme). */
+      await fetch(`/api/client/${clientId}/messages-systeme`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "rencontre_confirmee", label }),
       });
       const clientSnap = await getDoc(doc(db, "clients", clientId));
       const clientNom  = clientSnap.data()?.nom ?? "";
@@ -245,8 +248,6 @@ function RoadmapPageInner() {
     if (!customDate || !roadmap) return;
     setSubmittingCustom(true);
     try {
-      const now = Timestamp.now();
-
       await setDoc(doc(db, "clients", clientId, "roadmap", "rencontreValidation"), {
         statutClient: "propose",
         dateClientProposee: customDate,
@@ -259,10 +260,11 @@ function RoadmapPageInner() {
       );
       await updateDoc(doc(db, "clients", clientId, "roadmap", "main"), { etapes: updatedEtapes });
 
-      /* Auto-message + admin alerte */
-      await addDoc(collection(db, "clients", clientId, "messages"), {
-        texte: "Votre demande de date alternative a été reçue. Nous vous confirmons sous peu.",
-        auteur: "AW Solution", auteurRole: "admin", date: now, lu: false,
+      /* Auto-message — écrit côté serveur (SDK Admin), voir Partie 4A */
+      await fetch(`/api/client/${clientId}/messages-systeme`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "date_alternative_demandee" }),
       });
       const clientSnap = await getDoc(doc(db, "clients", clientId));
       const clientNom  = clientSnap.data()?.nom ?? "";

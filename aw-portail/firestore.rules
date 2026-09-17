@@ -35,7 +35,27 @@ service cloud.firestore {
 
       match /roadmap/{docId}         { allow read: if canRead(clientId); allow write: if isStaff() || canWriteAsClient(clientId); }
       match /notifs/{docId}          { allow read: if canRead(clientId); allow write: if isStaff() || canWriteAsClient(clientId); }
-      match /messages/{docId}        { allow read: if canRead(clientId); allow write: if isStaff() || canWriteAsClient(clientId); }
+      // Partie 4A : le staff garde tous les droits. Un client propriétaire ne
+      // peut créer un message que sous sa propre identité (auteurRole
+      // "client") — les confirmations automatiques "AW Solution" sont
+      // désormais écrites côté serveur via /api/client/[clientId]/messages-
+      // systeme (SDK Admin), jamais par une écriture Firestore directe du
+      // client. Sur un message admin, le client ne peut modifier que `lu` ;
+      // il ne peut modifier `fichiers` que sur ses propres messages, et ne
+      // peut jamais supprimer un message.
+      match /messages/{docId} {
+        allow read: if canRead(clientId);
+        allow create: if isStaff()
+                       || (canWriteAsClient(clientId) && request.resource.data.auteurRole == 'client');
+        allow update: if isStaff()
+                       || (canWriteAsClient(clientId) && (
+                            (resource.data.auteurRole == 'admin'
+                              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lu']))
+                            || (resource.data.auteurRole == 'client'
+                              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fichiers']))
+                          ));
+        allow delete: if isStaff();
+      }
       match /journal/{docId} {
         allow read: if canRead(clientId);
         allow create, delete: if isStaff();

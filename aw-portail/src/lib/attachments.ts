@@ -67,3 +67,15 @@ export async function uploaderFichiersJoints(
 export async function supprimerFichierJoint(storagePath: string): Promise<void> {
   await deleteObject(storageRef(storage, storagePath));
 }
+
+/**
+ * Vrai si l'erreur de `deleteObject` signifie simplement que le fichier
+ * n'existe déjà plus côté Storage (ex: supprimé une première fois par un
+ * autre appareil) — le seul cas où l'appelant doit quand même retirer la
+ * référence côté Firestore malgré l'échec de `supprimerFichierJoint`.
+ * Toute autre erreur (permission refusée, réseau, etc.) doit être traitée
+ * comme un échec réel : ne pas retirer le fichier, informer l'utilisateur.
+ */
+export function estFichierIntrouvable(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === "storage/object-not-found";
+}

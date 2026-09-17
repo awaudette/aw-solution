@@ -47,6 +47,7 @@ async function writeNotif(params: {
     lu:              false,
     actionRequise:   params.actionRequise ?? false,
     actionCompletee: false,
+    vu:              false,
   });
 }
 

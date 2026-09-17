@@ -191,16 +191,17 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
   }, [entry.statut, showButtons]);
 
   const needsReason        = selectedAction === "refuse" || selectedAction === "modification_demandee";
-  const canSubmit          = selectedAction !== null && (!needsReason || reason.trim().length > 0);
+  const canSubmit           = selectedAction !== null &&
+    (!needsReason || reason.trim().length > 0 || attachFiles.length > 0);
   const usePortraitLayout  = isPortrait === true && entry.images.length > 0;
 
   async function handleSubmit() {
     if (!selectedAction || !canSubmit || submitting) return;
     setSubmitting(true);
     try {
-      // Pièces jointes — uniquement pour une demande de modification (Partie 4).
+      // Pièces jointes — pour un refus ou une demande de modification (Partie 3A).
       let fichiers: FichierJoint[] = [];
-      if (selectedAction === "modification_demandee" && attachFiles.length > 0) {
+      if (needsReason && attachFiles.length > 0) {
         const res = await uploaderFichiersJoints(
           attachFiles,
           `clients/${clientId}/fichiers-joints/journal-retours/${entry.id}`,
@@ -428,7 +429,7 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
                 />
               )}
 
-              {selectedAction === "modification_demandee" && (
+              {needsReason && (
                 <div style={{ marginTop: 8 }}>
                   <FichierPicker
                     files={attachFiles} onChange={setAttachFiles}

@@ -258,6 +258,9 @@ function AdminJournalEntry({ entry, clientId }: { entry: JournalEntry; clientId:
     setRepublishing(true);
     try {
       const now = Timestamp.now();
+      // Capturé avant l'updateDoc ci-dessous — entry.statut reflète encore
+      // l'état précédent (refusé ou modification demandée) à ce stade.
+      const etaitRefuse = entry.statut === "refuse";
       let imageUrls = [...entry.images];
 
       if (republishImages.length > 0) {
@@ -282,9 +285,23 @@ function AdminJournalEntry({ entry, clientId }: { entry: JournalEntry; clientId:
         adminVu:               false,
       });
 
+      const texteRepublication = etaitRefuse
+        ? `Nouvelle version de "${entry.titre}" suite à votre refus — veuillez l'approuver.`
+        : `Nouvelle version de "${entry.titre}" suite à votre demande de modification — veuillez l'approuver.`;
+
       await addDoc(collection(db, "clients", clientId, "messages"), {
-        texte: `Votre journal de développement a été mis à jour : "${entry.titre}" — version ${entry.version + 1}`,
+        texte: texteRepublication,
         auteur: "AW Solution", auteurRole: "admin", date: now, lu: false,
+      });
+
+      const clientSnap = await getDoc(doc(db, "clients", clientId));
+      const clientNom  = clientSnap.data()?.nom ?? "";
+      await createNotification({
+        type: "nouveau_rapport", destinataire: "client",
+        clientId, clientNom, auteurRole: "admin",
+        description: texteRepublication,
+        lien: `/client/${clientId}/roadmap?tab=journal&entryId=${entry.id}`,
+        actionRequise: true,
       });
 
       setShowRepublishForm(false);

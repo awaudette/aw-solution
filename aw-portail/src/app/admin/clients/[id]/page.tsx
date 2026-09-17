@@ -12,7 +12,7 @@ import { db, functions, storage, auth } from "@/lib/firebase";
 import { createNotification, markNotifsReadFor } from "@/lib/notifications";
 import { FichierPicker } from "@/components/ui/FichierPicker";
 import { FichiersJoints } from "@/components/ui/FichiersJoints";
-import { uploaderFichiersJoints, supprimerFichierJoint, type FichierJoint } from "@/lib/attachments";
+import { uploaderFichiersJoints, supprimerFichierJoint, estFichierIntrouvable, type FichierJoint } from "@/lib/attachments";
 import {
   Dialog,
   DialogContent,
@@ -223,7 +223,15 @@ function AdminClientDetailContent() {
   }
 
   async function handleSupprimerFichier(m: Message, f: FichierJoint) {
-    try { await supprimerFichierJoint(f.storagePath); } catch { /* déjà supprimé, ou non autorisé */ }
+    try {
+      await supprimerFichierJoint(f.storagePath);
+    } catch (err) {
+      if (!estFichierIntrouvable(err)) {
+        setAttachError("Impossible de supprimer le fichier. Réessayez plus tard.");
+        return;
+      }
+      // Déjà supprimé côté Storage — on retire quand même la référence.
+    }
     await updateDoc(doc(db, "clients", id, "messages", m.id), {
       fichiers: (m.fichiers ?? []).filter((x) => x.storagePath !== f.storagePath),
     });

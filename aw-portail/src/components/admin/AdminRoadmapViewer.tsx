@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  doc, updateDoc, addDoc, collection, getDoc, setDoc, onSnapshot, Timestamp,
+  doc, updateDoc, addDoc, collection, getDoc, setDoc, onSnapshot, query, where, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createNotification, markActionCompleteFor } from "@/lib/notifications";
@@ -95,6 +95,20 @@ export function AdminRoadmapViewer({ clientId }: { clientId: string }) {
   ]);
   const [sendingCreneaux, setSendingCreneaux] = useState(false);
   const [confirmingDate,  setConfirmingDate]  = useState(false);
+
+  /* Journal — entrées refusées/en modification demandée non traitées — même
+     compteur que le badge de l'onglet "Feuille de route" (page fiche client),
+     affiché ici sur le sous-onglet "Journal" (Partie 3B). */
+  const [journalAttentionCount, setJournalAttentionCount] = useState(0);
+  useEffect(() => {
+    const q = query(
+      collection(db, "clients", clientId, "journal"),
+      where("statut", "in", ["refuse", "modification_demandee"]),
+    );
+    return onSnapshot(q, (snap) => {
+      setJournalAttentionCount(snap.docs.filter((d) => !d.data().adminVu).length);
+    });
+  }, [clientId]);
 
   /* Sync local state from roadmap */
   useEffect(() => {
@@ -334,10 +348,20 @@ export function AdminRoadmapViewer({ clientId }: { clientId: string }) {
             style={{
               padding: "10px 20px", border: "none", background: "none", cursor: "pointer",
               fontSize: 13, fontWeight: 600, position: "relative",
+              display: "flex", alignItems: "center", gap: 6,
               color: subTab === tab ? "#0362E3" : "#6B7280",
             }}
           >
             {tab === "progression" ? "Progression" : "Journal"}
+            {tab === "journal" && journalAttentionCount > 0 && (
+              <span style={{
+                display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700,
+                minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, fontSize: 11,
+                background: "#F59E0B", color: "#fff",
+              }}>
+                {journalAttentionCount}
+              </span>
+            )}
             {subTab === tab && (
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: "#0362E3", borderRadius: "1px 1px 0 0" }} />
             )}

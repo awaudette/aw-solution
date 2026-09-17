@@ -7,7 +7,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import {
-  markNotificationRead, markActionDone, getNotifStyle,
+  markNotificationRead, markActionDone, markNotificationVu, getNotifStyle,
   type NotificationDoc,
 } from "@/lib/notifications";
 import { db, auth } from "@/lib/firebase";
@@ -146,6 +146,7 @@ export default function AdminDashboard() {
             lu:              data.lu               ?? false,
             actionRequise:   data.actionRequise    ?? false,
             actionCompletee: data.actionCompletee  ?? false,
+            vu:              data.vu               ?? false,
             destinataireUid: data.destinataireUid  ?? undefined,
           } as NotificationDoc;
         })
@@ -176,6 +177,7 @@ export default function AdminDashboard() {
                   lu:              data.lu               ?? false,
                   actionRequise:   data.actionRequise    ?? false,
                   actionCompletee: data.actionCompletee  ?? false,
+                  vu:              data.vu               ?? false,
                   destinataireUid: data.destinataireUid  ?? undefined,
                 } as NotificationDoc;
               })
@@ -285,7 +287,10 @@ export default function AdminDashboard() {
               .slice(notifPage * NOTIF_PAGE_SIZE, (notifPage + 1) * NOTIF_PAGE_SIZE)
               .map((n) => {
                 const cfg = getNotifStyle(n.type);
-                const canDismiss = !n.actionRequise || n.actionCompletee;
+                // Sans actionRequise, le crochet est toujours actif. Avec
+                // actionRequise, il s'active quand l'action est complétée OU
+                // dès qu'un clic sur "Voir" a été enregistré (Partie 3D).
+                const canDismiss = !n.actionRequise || n.actionCompletee || n.vu;
                 return (
                   <div
                     key={n.id}
@@ -310,7 +315,10 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {n.lien && (
                         <button
-                          onClick={() => router.push(n.lien)}
+                          onClick={() => {
+                            if (n.actionRequise && !n.vu) markNotificationVu(n.id, n.clientId);
+                            router.push(n.lien);
+                          }}
                           className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
                           style={{ borderColor: cfg.border, color: cfg.text, background: "#fff" }}
                         >

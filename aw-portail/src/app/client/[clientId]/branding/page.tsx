@@ -3,7 +3,7 @@
 import { use, useEffect, useRef, useState } from "react";
 import {
   doc, setDoc, updateDoc, getDoc,
-  collection, addDoc, Timestamp,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createNotification, markActionCompleteFor } from "@/lib/notifications";
@@ -111,11 +111,15 @@ export default function BrandingPage({ params }: { params: Promise<{ clientId: s
           { brandingCompletedAt: now },
           { merge: true }
         ),
-        addDoc(collection(db, "clients", clientId, "messages"), {
-          contenu: "Nous avons bien reçu vos informations de branding ! Notre équipe va débuter la conception de votre application très prochainement. Si nous avons des questions en cours de route, nous vous écrirons directement ici — gardez un œil sur vos messages. Au plaisir de vous présenter le résultat !",
-          expediteur: "aw",
-          lu: false,
-          envoyeAt: now,
+        // Message de confirmation — écrit côté serveur (SDK Admin) : depuis la
+        // Partie 4A, le client ne peut plus créer lui-même un message
+        // auteurRole "admin". Corrige au passage le schéma (texte/auteurRole/
+        // auteur/date) — l'ancien contenu/expediteur/envoyeAt ne correspondait
+        // à aucun champ lu par les listes de messages.
+        fetch(`/api/client/${clientId}/messages-systeme`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "branding_complet" }),
         }),
         createNotification({
           type: "branding_complet", destinataire: "admin",

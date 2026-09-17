@@ -57,6 +57,7 @@ export interface ActiviteItem {
   lu: boolean;
   actionRequise: boolean;
   actionCompletee: boolean;
+  vu: boolean;
 }
 
 export interface MessageItem {
@@ -145,6 +146,7 @@ export function useClientData(clientId: string) {
               lu:              data.lu               ?? false,
               actionRequise:   data.actionRequise    ?? false,
               actionCompletee: data.actionCompletee  ?? false,
+              vu:              data.vu               ?? false,
               destinataire:    data.destinataire     ?? "client",
             };
           })

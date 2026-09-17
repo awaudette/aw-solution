@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { markNotificationRead, getNotifStyle } from "@/lib/notifications";
+import { markNotificationRead, markNotificationVu, getNotifStyle } from "@/lib/notifications";
 import type { ActiviteItem } from "@/hooks/useClientData";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -66,7 +66,10 @@ export function CardNotifications({ clientId, activite }: CardNotificationsProps
         <>
           {paged.map((item, i) => {
             const cfg = getNotifStyle(item.type);
-            const canDismiss = !item.actionRequise || item.actionCompletee;
+            // Sans actionRequise, le crochet est toujours actif. Avec
+            // actionRequise, il s'active quand l'action est complétée OU
+            // dès qu'un clic sur "Voir" a été enregistré (Partie 3D).
+            const canDismiss = !item.actionRequise || item.actionCompletee || item.vu;
             return (
               <div key={item.id}>
                 <div style={{
@@ -87,7 +90,10 @@ export function CardNotifications({ clientId, activite }: CardNotificationsProps
                   <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                     {item.lien && (
                       <button
-                        onClick={() => router.push(item.lien)}
+                        onClick={() => {
+                          if (item.actionRequise && !item.vu) markNotificationVu(item.id, clientId);
+                          router.push(item.lien);
+                        }}
                         style={{
                           padding: "3px 10px", fontSize: 11, fontWeight: 600,
                           background: cfg.bg, color: cfg.text,
