@@ -7,7 +7,7 @@ import {
   Timestamp, where, getDocs, writeBatch, doc, getDoc,
   setDoc, updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { createNotification, markActionCompleteFor } from "@/lib/notifications";
 import { useClientData } from "@/hooks/useClientData";
 import {
@@ -16,6 +16,9 @@ import {
   Video, Check,
 } from "lucide-react";
 import { TourSectionButton } from "@/components/tour/TourSectionButton";
+import { FichierPicker } from "@/components/ui/FichierPicker";
+import { FichiersJoints } from "@/components/ui/FichiersJoints";
+import { uploaderFichiersJoints, supprimerFichierJoint, type FichierJoint } from "@/lib/attachments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +26,7 @@ interface Message {
   id: string; texte: string; auteur: string;
   auteurRole: "client" | "admin"; date: Date;
   lu: boolean; lien?: string; typeMsg?: string;
+  fichiers?: FichierJoint[];
 }
 
 interface DemandeSupport {
@@ -156,9 +160,11 @@ function SupportHeader() {
 // ─── Bloc 2 — Messagerie ──────────────────────────────────────────────────────
 
 function MessagerieBloc({ clientId, client }: { clientId: string; client: { nom: string } | null }) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [texte,    setTexte]    = useState("");
-  const [sending,  setSending]  = useState(false);
+  const [messages,     setMessages]     = useState<Message[]>([]);
+  const [texte,        setTexte]        = useState("");
+  const [sending,      setSending]      = useState(false);
+  const [attachFiles,  setAttachFiles]  = useState<File[]>([]);
+  const [attachError,  setAttachError]  = useState<string | null>(null);
   const bottomRef              = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -171,9 +177,17 @@ function MessagerieBloc({ clientId, client }: { clientId: string; client: { nom:
         date: d.data().date instanceof Timestamp ? d.data().date.toDate() : new Date(),
         lu: d.data().lu ?? false,
         lien: d.data().lien ?? undefined, typeMsg: d.data().typeMsg ?? undefined,
+        fichiers: d.data().fichiers ?? undefined,
       })));
     });
   }, [clientId]);
+
+  async function handleSupprimerFichier(m: Message, f: FichierJoint) {
+    try { await supprimerFichierJoint(f.storagePath); } catch { /* déjà supprimé, ou non autorisé */ }
+    await updateDoc(doc(db, "clients", clientId, "messages", m.id), {
+      fichiers: (m.fichiers ?? []).filter(x => x.storagePath !== f.storagePath),
+    });
+  }
 
   useEffect(() => {
     async function mark() {
@@ -191,13 +205,21 @@ function MessagerieBloc({ clientId, client }: { clientId: string; client: { nom:
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function handleSend() {
-    if (!texte.trim() || !client) return;
+    if ((!texte.trim() && attachFiles.length === 0) || !client) return;
     setSending(true);
     const now = Timestamp.now(); const msg = texte.trim();
     try {
+      let fichiers: FichierJoint[] = [];
+      if (attachFiles.length > 0) {
+        const res = await uploaderFichiersJoints(attachFiles, `clients/${clientId}/fichiers-joints/messages`);
+        if (res.erreurs.length > 0) { setAttachError(res.erreurs.join(" ")); setSending(false); return; }
+        fichiers = res.fichiers;
+      }
       await addDoc(collection(db, "clients", clientId, "messages"), {
         texte: msg, auteur: client.nom, auteurRole: "client", date: now, lu: false,
+        ...(fichiers.length > 0 ? { fichiers } : {}),
       });
+      setAttachFiles([]); setAttachError(null);
       await createNotification({
         type: "nouveau_message", destinataire: "admin",
         clientId, clientNom: client.nom, auteurRole: "client",
@@ -258,11 +280,18 @@ function MessagerieBloc({ clientId, client }: { clientId: string; client: { nom:
               </div>
             );
           }
+          const canDeleteFichier = (f: FichierJoint) => f.uploaderUid === auth.currentUser?.uid;
           return (
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: isClient ? "flex-end" : "flex-start" }}>
               {!isClient && <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 4px 4px", fontWeight: 500 }}>AW Solution</p>}
               <div style={{ maxWidth: "75%", background: isClient ? "#0362E3" : "#F3F4F6", color: isClient ? "#fff" : "#1F2937", borderRadius: isClient ? "16px 16px 4px 16px" : "16px 16px 16px 4px", padding: "10px 14px", fontSize: 14, lineHeight: 1.5 }}>
                 {m.texte}
+                <FichiersJoints
+                  fichiers={m.fichiers}
+                  dark={isClient}
+                  canDelete={canDeleteFichier}
+                  onDelete={f => handleSupprimerFichier(m, f)}
+                />
               </div>
               <p style={{ fontSize: 11, color: "#9CA3AF", margin: "4px 0 0", padding: "0 4px" }}>{formatTime(m.date)}</p>
             </div>
@@ -272,24 +301,27 @@ function MessagerieBloc({ clientId, client }: { clientId: string; client: { nom:
       </div>
 
       {/* Input */}
-      <div style={{ borderTop: "1px solid #F3F4F6", padding: "14px 24px", display: "flex", gap: 10, alignItems: "flex-end" }}>
-        <textarea
-          value={texte}
-          onChange={e => setTexte(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          placeholder="Écrivez votre message… (Entrée pour envoyer)"
-          rows={2}
-          style={{ flex: 1, resize: "none", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 14px", fontSize: 14, color: "#1F2937", outline: "none", fontFamily: "inherit" }}
-          onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#0362E3"; }}
-          onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#E5E7EB"; }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={!texte.trim() || sending}
-          style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: !texte.trim() || sending ? "#E5E7EB" : "#0362E3", color: "#fff", cursor: !texte.trim() || sending ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 150ms" }}
-        >
-          <Send size={16} />
-        </button>
+      <div style={{ borderTop: "1px solid #F3F4F6", padding: "14px 24px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <FichierPicker files={attachFiles} onChange={setAttachFiles} error={attachError} onErrorChange={setAttachError} />
+          <textarea
+            value={texte}
+            onChange={e => setTexte(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder="Écrivez votre message… (Entrée pour envoyer)"
+            rows={2}
+            style={{ flex: 1, resize: "none", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 14px", fontSize: 14, color: "#1F2937", outline: "none", fontFamily: "inherit" }}
+            onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#0362E3"; }}
+            onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#E5E7EB"; }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={(!texte.trim() && attachFiles.length === 0) || sending}
+            style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: (!texte.trim() && attachFiles.length === 0) || sending ? "#E5E7EB" : "#0362E3", color: "#fff", cursor: (!texte.trim() && attachFiles.length === 0) || sending ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 150ms" }}
+          >
+            <Send size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );

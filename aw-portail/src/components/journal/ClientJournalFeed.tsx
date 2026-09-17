@@ -7,8 +7,11 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createNotification, markActionCompleteFor } from "@/lib/notifications";
-import type { JournalEntry, JournalMessage, JournalStatut } from "@/types/journal";
+import type { JournalEntry, JournalStatut } from "@/types/journal";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { FichierPicker } from "@/components/ui/FichierPicker";
+import { FichiersJoints } from "@/components/ui/FichiersJoints";
+import { uploaderFichiersJoints, type FichierJoint } from "@/lib/attachments";
 
 const CSS = `@keyframes spin { to { transform: rotate(360deg); } }`;
 
@@ -50,10 +53,6 @@ const ACTION_BTNS: Array<{
 
 function formatDateFr(ts: Timestamp): string {
   return ts.toDate().toLocaleDateString("fr-CA", { day: "numeric", month: "long", year: "numeric" });
-}
-
-function formatTimeFr(ts: Timestamp): string {
-  return ts.toDate().toLocaleString("fr-CA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
@@ -140,17 +139,14 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
   /** Vrai si cette entrée est visée par ?entryId= (lien "Voir" d'une notif) — force l'ouverture et scroll dans la vue. */
   highlight?: boolean;
 }) {
-  const [conversation,   setConversation]   = useState<JournalMessage[]>([]);
   const [selectedAction, setSelectedAction] = useState<Exclude<JournalStatut, "en_attente"> | null>(null);
   const [reason,         setReason]         = useState("");
+  const [attachFiles,    setAttachFiles]    = useState<File[]>([]);
+  const [attachError,    setAttachError]    = useState<string | null>(null);
   const [showButtons,    setShowButtons]    = useState(entry.statut === "en_attente");
   const [submitting,     setSubmitting]     = useState(false);
-  const [reply,          setReply]          = useState("");
-  const [sendingReply,   setSendingReply]   = useState(false);
-  const [convOpen,       setConvOpen]       = useState(false);
   const [isPortrait,     setIsPortrait]     = useState<boolean | null>(null);
   const [isExpanded,     setIsExpanded]     = useState(highlight || entry.statut !== "approuve");
-  const prevConvLen = useRef(0);
   const prevStatut  = useRef(entry.statut);
   const cardRef     = useRef<HTMLDivElement>(null);
 
@@ -181,6 +177,8 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
       setShowButtons(true);
       setSelectedAction(null);
       setReason("");
+      setAttachFiles([]);
+      setAttachError(null);
     }
   }, [entry.statut]);
 
@@ -192,61 +190,39 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
     prevStatut.current = entry.statut;
   }, [entry.statut, showButtons]);
 
-  /* Listen to conversation */
-  useEffect(() => {
-    const q = query(
-      collection(db, "clients", clientId, "journal", entry.id, "conversation"),
-      orderBy("timestamp", "asc"),
-    );
-    return onSnapshot(q, snap => {
-      setConversation(snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalMessage)));
-    });
-  }, [clientId, entry.id]);
-
-  /* Auto-expand conversation on new messages */
-  useEffect(() => {
-    if (conversation.length > prevConvLen.current && conversation.length > 0) {
-      setConvOpen(true);
-    }
-    prevConvLen.current = conversation.length;
-  }, [conversation.length]);
-
   const needsReason        = selectedAction === "refuse" || selectedAction === "modification_demandee";
   const canSubmit          = selectedAction !== null && (!needsReason || reason.trim().length > 0);
-  const wasAlreadyAnswered = entry.statut !== "en_attente";
   const usePortraitLayout  = isPortrait === true && entry.images.length > 0;
 
   async function handleSubmit() {
     if (!selectedAction || !canSubmit || submitting) return;
     setSubmitting(true);
     try {
-      const now = Timestamp.now();
+      // Pièces jointes — uniquement pour une demande de modification (Partie 4).
+      let fichiers: FichierJoint[] = [];
+      if (selectedAction === "modification_demandee" && attachFiles.length > 0) {
+        const res = await uploaderFichiersJoints(
+          attachFiles,
+          `clients/${clientId}/fichiers-joints/journal-retours/${entry.id}`,
+        );
+        if (res.erreurs.length > 0) {
+          setAttachError(res.erreurs.join(" "));
+          setSubmitting(false);
+          return;
+        }
+        fichiers = res.fichiers;
+      }
+
       await updateDoc(doc(db, "clients", clientId, "journal", entry.id), {
-        statut: selectedAction, raisonClient: reason.trim() || null, lu: true,
-      });
-
-      const msgText =
-        selectedAction === "approuve"
-          ? "J'approuve cette mise à jour."
-          : selectedAction === "refuse"
-          ? `Je refuse cette mise à jour.\nRaison : ${reason.trim()}`
-          : `Je demande une modification.\nRaison : ${reason.trim()}`;
-
-      await addDoc(collection(db, "clients", clientId, "journal", entry.id, "conversation"), {
-        auteur: "client", message: msgText, timestamp: now,
+        statut: selectedAction, raisonClient: reason.trim() || null,
+        raisonClientFichiers: fichiers, lu: true, adminVu: false,
       });
 
       const clientSnap = await getDoc(doc(db, "clients", clientId));
       const clientNom  = clientSnap.data()?.nom ?? "";
-      const alerteType = wasAlreadyAnswered
-        ? "journal_choix_modifie"
-        : selectedAction === "approuve" ? "journal_approuve"
-        : selectedAction === "refuse"   ? "journal_refuse"
-        : "journal_modification";
-      const journalType = wasAlreadyAnswered
-        ? "journal_modification"
-        : selectedAction === "approuve" ? "journal_approuve"
-        : selectedAction === "refuse"   ? "journal_refuse"
+      const journalType =
+        selectedAction === "approuve" ? "journal_approuve"
+        : selectedAction === "refuse" ? "journal_refuse"
         : "journal_modification";
       await createNotification({
         type: journalType, destinataire: "admin",
@@ -255,35 +231,27 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
         lien: `/admin/clients/${clientId}?tab=journal`,
         actionRequise: journalType !== "journal_approuve",
       });
+
+      // Message au client dans sa messagerie (Partie 3) — auteurRole "client"
+      // puisque c'est le client qui vient de poser cette action.
+      const texteMsg =
+        selectedAction === "approuve"
+          ? `Mise à jour approuvée : "${entry.titre}"`
+          : selectedAction === "refuse"
+          ? `Mise à jour refusée : "${entry.titre}" : ${reason.trim()}`
+          : `Modification demandée sur "${entry.titre}" : ${reason.trim()}`;
+      await addDoc(collection(db, "clients", clientId, "messages"), {
+        texte: texteMsg, auteur: clientNom || "Client", auteurRole: "client",
+        date: Timestamp.now(), lu: false,
+      });
+
       // Cas 1 : client a répondu → la notification "nouveau_rapport" passe à actionCompletee
       await markActionCompleteFor({ clientId, type: "nouveau_rapport", destinataire: "client" });
 
       setShowButtons(false);
-      setConvOpen(true);
+      setAttachFiles([]);
+      setAttachError(null);
     } finally { setSubmitting(false); }
-  }
-
-  async function handleSendReply() {
-    if (!reply.trim() || sendingReply) return;
-    setSendingReply(true);
-    try {
-      const now = Timestamp.now();
-      await addDoc(collection(db, "clients", clientId, "journal", entry.id, "conversation"), {
-        auteur: "client", message: reply.trim(), timestamp: now,
-      });
-      const clientSnap = await getDoc(doc(db, "clients", clientId));
-      const clientNom  = clientSnap.data()?.nom ?? "";
-      await createNotification({
-        type: "journal_reponse", destinataire: "admin",
-        clientId, clientNom, auteurRole: "client",
-        description: `${clientNom} — Réponse dans le journal : "${entry.titre}"`,
-        lien: `/admin/clients/${clientId}?tab=journal`,
-      });
-      // Cas 4 : client a répondu dans le fil → question_journal passe à actionCompletee
-      await markActionCompleteFor({ clientId, type: "question_journal", destinataire: "client" });
-      setReply("");
-      setConvOpen(true);
-    } finally { setSendingReply(false); }
   }
 
   const cfg        = STATUT_CFG[entry.statut];
@@ -460,6 +428,15 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
                 />
               )}
 
+              {selectedAction === "modification_demandee" && (
+                <div style={{ marginTop: 8 }}>
+                  <FichierPicker
+                    files={attachFiles} onChange={setAttachFiles}
+                    error={attachError} onErrorChange={setAttachError}
+                  />
+                </div>
+              )}
+
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit || submitting}
@@ -488,9 +465,10 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
                 {entry.raisonClient && (
                   <span style={{ fontSize: 12, color: cfg.color, opacity: 0.85, lineHeight: 1.6 }}>{entry.raisonClient}</span>
                 )}
+                <FichiersJoints fichiers={entry.raisonClientFichiers} />
               </div>
               <button
-                onClick={() => { setShowButtons(true); setSelectedAction(null); setReason(""); }}
+                onClick={() => { setShowButtons(true); setSelectedAction(null); setReason(""); setAttachFiles([]); setAttachError(null); }}
                 style={{
                   background: "none", border: "none", padding: "6px 0 0",
                   color: "#9CA3AF", fontSize: 11, cursor: "pointer",
@@ -533,79 +511,6 @@ function JournalCard({ entry, clientId, onImageClick, highlight = false }: {
         )}
       </div>
 
-      {/* ── Conversation accordion ── */}
-      <div style={{ borderTop: "1px solid #F3F4F6" }}>
-        <button
-          onClick={() => setConvOpen(o => !o)}
-          style={{
-            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "10px 20px", border: "none", background: "none", cursor: "pointer",
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Conversation{conversation.length > 0 ? ` (${conversation.length})` : ""}
-          </span>
-          {convOpen ? <ChevronUp size={14} color="#9CA3AF" /> : <ChevronDown size={14} color="#9CA3AF" />}
-        </button>
-
-        {convOpen && (
-          <div style={{ padding: "0 20px 14px" }}>
-            {conversation.length === 0 ? (
-              <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>Aucun message pour l'instant.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {conversation.map(msg => (
-                  <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: msg.auteur === "client" ? "flex-end" : "flex-start" }}>
-                    <div style={{
-                      maxWidth: "82%", padding: "9px 13px", borderRadius: 12,
-                      background: msg.auteur === "client" ? "#EFF6FF" : "#F9FAFB",
-                      border: `1px solid ${msg.auteur === "client" ? "#BFDBFE" : "#E5E7EB"}`,
-                    }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: msg.auteur === "client" ? "#1D4ED8" : "#374151", margin: "0 0 4px" }}>
-                        {msg.auteur === "client" ? "Vous" : "AW Solution"}
-                      </p>
-                      <p style={{ fontSize: 13, color: "#374151", margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.65 }}>{msg.message}</p>
-                      <p style={{ fontSize: 10, color: "#9CA3AF", margin: "5px 0 0", textAlign: msg.auteur === "client" ? "right" : "left" }}>
-                        {formatTimeFr(msg.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Reply input — always visible */}
-      <div style={{ borderTop: "1px solid #F3F4F6", padding: "12px 20px", display: "flex", gap: 8 }}>
-        <textarea
-          value={reply}
-          onChange={e => setReply(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendReply(); } }}
-          placeholder="Ajouter un commentaire…"
-          rows={1}
-          style={{
-            flex: 1, padding: "8px 10px", borderRadius: 8,
-            border: "1px solid #E5E7EB", fontSize: 13, color: "#374151",
-            outline: "none", fontFamily: "inherit", resize: "none",
-          }}
-        />
-        <button
-          onClick={handleSendReply}
-          disabled={!reply.trim() || sendingReply}
-          style={{
-            padding: "8px 16px", borderRadius: 8, border: "none",
-            background: reply.trim() ? "#0362E3" : "#E5E7EB",
-            color: reply.trim() ? "#fff" : "#9CA3AF",
-            fontSize: 12, fontWeight: 600,
-            cursor: reply.trim() && !sendingReply ? "pointer" : "not-allowed",
-            flexShrink: 0,
-          }}
-        >
-          Envoyer
-        </button>
-      </div>
     </div>
   );
 }

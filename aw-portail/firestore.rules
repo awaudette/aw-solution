@@ -40,7 +40,6 @@ service cloud.firestore {
         allow read: if canRead(clientId);
         allow create, delete: if isStaff();
         allow update: if isStaff() || canWriteAsClient(clientId);
-        match /conversation/{msgId} { allow read, write: if canRead(clientId); }
       }
       match /branding/{docId} {
         allow read, write: if isStaff() || canWriteAsClient(clientId);

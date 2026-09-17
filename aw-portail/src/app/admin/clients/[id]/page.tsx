@@ -8,8 +8,11 @@ import {
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, functions, storage } from "@/lib/firebase";
+import { db, functions, storage, auth } from "@/lib/firebase";
 import { createNotification, markNotifsReadFor } from "@/lib/notifications";
+import { FichierPicker } from "@/components/ui/FichierPicker";
+import { FichiersJoints } from "@/components/ui/FichiersJoints";
+import { uploaderFichiersJoints, supprimerFichierJoint, type FichierJoint } from "@/lib/attachments";
 import {
   Dialog,
   DialogContent,
@@ -49,7 +52,7 @@ import { AdminBrandingViewer } from "@/components/admin/AdminBrandingViewer";
 import { AdminRoadmapViewer } from "@/components/admin/AdminRoadmapViewer";
 import { AdminCalendrierClient } from "@/components/calendrier/AdminCalendrierClient";
 import { AdminDocumentationTab } from "@/components/admin/AdminDocumentationTab";
-import { useRequireSection } from "@/components/admin/AdminAccessProvider";
+import { useRequireSection, useAdminAccess } from "@/components/admin/AdminAccessProvider";
 import { AdminDonneesViewer } from "@/components/admin/AdminDonneesViewer";
 import { CreerAbonnementDialog } from "@/components/admin/clients/CreerAbonnementDialog";
 
@@ -87,6 +90,7 @@ interface Message {
   auteurRole: "client" | "admin";
   date: Date;
   lu: boolean;
+  fichiers?: FichierJoint[];
 }
 
 function toDate(v: unknown): Date | null {
@@ -137,6 +141,7 @@ export default function AdminClientDetailPage() {
 
 function AdminClientDetailContent() {
   const { ready } = useRequireSection("clients");
+  const { role }  = useAdminAccess();
   const { id }    = useParams<{ id: string }>();
   const router    = useRouter();
   const searchParams = useSearchParams();
@@ -209,7 +214,20 @@ function AdminClientDetailContent() {
   const [msgTexte, setMsgTexte] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [attachFiles, setAttachFiles] = useState<File[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  function canDeleteFichier(f: FichierJoint): boolean {
+    return role === "admin" || f.uploaderUid === auth.currentUser?.uid;
+  }
+
+  async function handleSupprimerFichier(m: Message, f: FichierJoint) {
+    try { await supprimerFichierJoint(f.storagePath); } catch { /* déjà supprimé, ou non autorisé */ }
+    await updateDoc(doc(db, "clients", id, "messages", m.id), {
+      fichiers: (m.fichiers ?? []).filter((x) => x.storagePath !== f.storagePath),
+    });
+  }
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "clients", id), (snap) => {
@@ -268,9 +286,22 @@ function AdminClientDetailContent() {
         auteurRole: (d.data().auteurRole ?? "client") as "client" | "admin",
         date: d.data().date instanceof Timestamp ? d.data().date.toDate() : new Date(),
         lu: d.data().lu ?? false,
+        fichiers: d.data().fichiers ?? undefined,
       }));
       setMessages(msgs);
       setUnreadCount(msgs.filter((m) => m.auteurRole === "client" && !m.lu).length);
+    });
+  }, [id]);
+
+  // Journal — entrées refusées/en modification demandée non traitées (Partie 6B)
+  const [journalAttentionCount, setJournalAttentionCount] = useState(0);
+  useEffect(() => {
+    const q = query(
+      collection(db, "clients", id, "journal"),
+      where("statut", "in", ["refuse", "modification_demandee"]),
+    );
+    return onSnapshot(q, (snap) => {
+      setJournalAttentionCount(snap.docs.filter((d) => !d.data().adminVu).length);
     });
   }, [id]);
 
@@ -415,16 +446,24 @@ function AdminClientDetailContent() {
   }
 
   async function handleSendMessage() {
-    if (!msgTexte.trim() || !client) return;
+    if ((!msgTexte.trim() && attachFiles.length === 0) || !client) return;
     setSendingMsg(true);
     try {
+      let fichiers: FichierJoint[] = [];
+      if (attachFiles.length > 0) {
+        const res = await uploaderFichiersJoints(attachFiles, `clients/${id}/fichiers-joints/messages`);
+        if (res.erreurs.length > 0) { setAttachError(res.erreurs.join(" ")); setSendingMsg(false); return; }
+        fichiers = res.fichiers;
+      }
       await addDoc(collection(db, "clients", id, "messages"), {
         texte: msgTexte.trim(),
         auteur: "AW Solution",
         auteurRole: "admin",
         date: Timestamp.now(),
         lu: false,
+        ...(fichiers.length > 0 ? { fichiers } : {}),
       });
+      setAttachFiles([]); setAttachError(null);
 
       // Mark client messages as read
       const msgQ = query(
@@ -539,6 +578,12 @@ function AdminClientDetailContent() {
         >
           <Map size={14} />
           Feuille de route
+          {journalAttentionCount > 0 && (
+            <span className="flex items-center justify-center font-semibold"
+              style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, fontSize: 11, background: "#F59E0B", color: "#fff" }}>
+              {journalAttentionCount}
+            </span>
+          )}
           {activeTab === "roadmap" && (
             <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t" />
           )}
@@ -951,6 +996,12 @@ function AdminClientDetailContent() {
                       }}
                     >
                       {m.texte}
+                      <FichiersJoints
+                        fichiers={m.fichiers}
+                        dark={isAdmin}
+                        canDelete={canDeleteFichier}
+                        onDelete={(f) => handleSupprimerFichier(m, f)}
+                      />
                     </div>
                     <p className="text-xs text-gray-400 mt-1 px-1">{formatTime(m.date)}</p>
                   </div>
@@ -961,6 +1012,7 @@ function AdminClientDetailContent() {
 
             {/* Reply */}
             <div className="border-t border-gray-100 p-4 flex gap-3 items-end">
+              <FichierPicker files={attachFiles} onChange={setAttachFiles} error={attachError} onErrorChange={setAttachError} />
               <textarea
                 value={msgTexte}
                 onChange={(e) => setMsgTexte(e.target.value)}
@@ -976,9 +1028,9 @@ function AdminClientDetailContent() {
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!msgTexte.trim() || sendingMsg}
+                disabled={(!msgTexte.trim() && attachFiles.length === 0) || sendingMsg}
                 className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: msgTexte.trim() && !sendingMsg ? "#0362E3" : "#E5E7EB" }}
+                style={{ background: (msgTexte.trim() || attachFiles.length > 0) && !sendingMsg ? "#0362E3" : "#E5E7EB" }}
               >
                 {sendingMsg
                   ? <Loader2 size={15} className="animate-spin text-white" />

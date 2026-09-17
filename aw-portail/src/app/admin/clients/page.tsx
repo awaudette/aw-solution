@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useClients } from "@/hooks/useClients";
 import type { Client } from "@/types/admin";
-import { FileText, Loader2, ChevronRight, MessageSquare } from "lucide-react";
+import { FileText, Loader2, ChevronRight, MessageSquare, PenLine } from "lucide-react";
 import { useRequireSection } from "@/components/admin/AdminAccessProvider";
 
 function ForfaitBadge({ forfait }: { forfait: Client["forfait"] }) {
@@ -41,6 +41,7 @@ export default function ClientsListPage() {
   const { ready } = useRequireSection("clients");
   const { clients, loading } = useClients();
   const [clientsWithUnread, setClientsWithUnread] = useState<Set<string>>(new Set());
+  const [journalCounts, setJournalCounts] = useState<Record<string, number>>({});
 
   // Badge "non lu" par client — sous-collection clients/{id}/notifs filtrée en JS
   useEffect(() => {
@@ -69,6 +70,27 @@ export default function ClientsListPage() {
           );
         },
       );
+      unsubs.push(unsub);
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [clients]);
+
+  // Badge "à traiter" par client (Partie 6B) — entrées de journal
+  // refusées/en modification demandée, non encore marquées "vu".
+  useEffect(() => {
+    if (clients.length === 0) return;
+    const unsubs: Array<() => void> = [];
+
+    clients.forEach((c) => {
+      const q = query(
+        collection(db, "clients", c.id, "journal"),
+        where("statut", "in", ["refuse", "modification_demandee"]),
+      );
+      const unsub = onSnapshot(q, (snap) => {
+        const n = snap.docs.filter((d) => !d.data().adminVu).length;
+        setJournalCounts((prev) => ({ ...prev, [c.id]: n }));
+      });
       unsubs.push(unsub);
     });
 
@@ -116,6 +138,11 @@ export default function ClientsListPage() {
                     {clientsWithUnread.has(c.id) && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100">
                         <MessageSquare size={11} /> Message
+                      </span>
+                    )}
+                    {(journalCounts[c.id] ?? 0) > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                        <PenLine size={11} /> {journalCounts[c.id]}
                       </span>
                     )}
                   </div>

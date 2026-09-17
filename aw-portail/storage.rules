@@ -13,6 +13,7 @@ service firebase.storage {
     function myRole() { return meExists() ? me().role : null; }
     function myClientId() { return meExists() ? me().get('clientId', null) : null; }
     function isStaff() { return active() && myRole() in ['admin', 'employe']; }
+    function isAdmin() { return active() && myRole() == 'admin'; }
     function isOwnClient(clientId) {
       return active() && myRole() == 'client' && myClientId() == clientId;
     }
@@ -23,6 +24,20 @@ service firebase.storage {
     match /clients/{clientId}/journal/{allPaths=**} {
       allow read: if isStaff() || isOwnClient(clientId);
       allow write: if isStaff();
+    }
+    // Pièces jointes — Messagerie (clients/{clientId}/fichiers-joints/messages/…)
+    // et demandes de modification du journal
+    // (clients/{clientId}/fichiers-joints/journal-retours/{entryId}/…).
+    // Tout type de fichier, 25 Mo maximum par fichier. Suppression : auteur du
+    // fichier (customMetadata.uploaderUid posé au téléversement, voir
+    // src/lib/attachments.ts) ou admin — couvre "auteur peut supprimer le
+    // sien", "employé seulement les siens", "admin n'importe lequel".
+    match /clients/{clientId}/fichiers-joints/{allPaths=**} {
+      allow read: if isStaff() || isOwnClient(clientId);
+      allow create: if (isStaff() || isOwnClient(clientId))
+                    && request.resource.size <= 25 * 1024 * 1024
+                    && request.resource.metadata.uploaderUid == request.auth.uid;
+      allow delete: if isAdmin() || (active() && resource.metadata.uploaderUid == request.auth.uid);
     }
     match /contrats/{clientId}/{allPaths=**} {
       allow read: if isStaff() || isOwnClient(clientId);

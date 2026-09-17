@@ -7,13 +7,17 @@ import {
   collection, onSnapshot, query, orderBy, where,
   addDoc, Timestamp, doc, getDoc, writeBatch, getDocs, updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { markActionCompleteFor, markNotifsReadFor } from "@/lib/notifications";
 import {
   Search, MessageSquare, Send, ExternalLink, ChevronDown,
   CheckCircle, Bell, CalendarDays,
 } from "lucide-react";
-import { useRequireSection } from "@/components/admin/AdminAccessProvider";
+import { useRequireSection, useAdminAccess } from "@/components/admin/AdminAccessProvider";
+import { useAdminSidebarExpanded } from "@/components/layout/AdminSidebarContext";
+import { FichierPicker } from "@/components/ui/FichierPicker";
+import { FichiersJoints } from "@/components/ui/FichiersJoints";
+import { uploaderFichiersJoints, supprimerFichierJoint, type FichierJoint } from "@/lib/attachments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +27,7 @@ interface Msg {
   id: string; texte: string; auteur: string;
   auteurRole: "client" | "admin"; date: Date; lu: boolean;
   lien?: string; typeMsg?: string;
+  fichiers?: FichierJoint[];
 }
 
 interface ConvMeta { lastMessage: Msg | null; unreadCount: number; }
@@ -88,9 +93,12 @@ function StatutDemandeBadge({ s }: { s: string }) {
 // ─── Tab : Messages ───────────────────────────────────────────────────────────
 
 function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc }) {
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [texte,    setTexte]    = useState("");
-  const [sending,  setSending]  = useState(false);
+  const { role } = useAdminAccess();
+  const [messages,    setMessages]    = useState<Msg[]>([]);
+  const [texte,       setTexte]       = useState("");
+  const [sending,     setSending]     = useState(false);
+  const [attachFiles, setAttachFiles] = useState<File[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -102,9 +110,21 @@ function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc
         date: d.data().date instanceof Timestamp ? d.data().date.toDate() : new Date(),
         lu: d.data().lu ?? true,
         lien: d.data().lien, typeMsg: d.data().typeMsg,
+        fichiers: d.data().fichiers ?? undefined,
       })));
     });
   }, [clientId]);
+
+  function canDeleteFichier(f: FichierJoint): boolean {
+    return role === "admin" || f.uploaderUid === auth.currentUser?.uid;
+  }
+
+  async function handleSupprimerFichier(m: Msg, f: FichierJoint) {
+    try { await supprimerFichierJoint(f.storagePath); } catch { /* déjà supprimé, ou non autorisé */ }
+    await updateDoc(doc(db, "clients", clientId, "messages", m.id), {
+      fichiers: (m.fichiers ?? []).filter(x => x.storagePath !== f.storagePath),
+    });
+  }
 
   // Mark client messages as read when tab opens
   useEffect(() => {
@@ -125,13 +145,21 @@ function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   async function send() {
-    if (!texte.trim() || sending) return;
+    if ((!texte.trim() && attachFiles.length === 0) || sending) return;
     setSending(true);
     const msg = texte.trim(); const now = Timestamp.now();
     try {
+      let fichiers: FichierJoint[] = [];
+      if (attachFiles.length > 0) {
+        const res = await uploaderFichiersJoints(attachFiles, `clients/${clientId}/fichiers-joints/messages`);
+        if (res.erreurs.length > 0) { setAttachError(res.erreurs.join(" ")); setSending(false); return; }
+        fichiers = res.fichiers;
+      }
       await addDoc(collection(db, "clients", clientId, "messages"), {
         texte: msg, auteur: "AW Solution", auteurRole: "admin", date: now, lu: false,
+        ...(fichiers.length > 0 ? { fichiers } : {}),
       });
+      setAttachFiles([]); setAttachError(null);
       // L'admin vient de répondre — la notif "nouveau_message" qui l'a amené
       // ici n'a plus lieu d'être affichée.
       markNotifsReadFor({ clientId, type: "nouveau_message", destinataire: "admin" }).catch(() => {});
@@ -171,6 +199,12 @@ function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc
                 padding: "10px 14px", fontSize: 14, lineHeight: 1.5,
               }}>
                 {m.texte}
+                <FichiersJoints
+                  fichiers={m.fichiers}
+                  dark={isAdmin}
+                  canDelete={canDeleteFichier}
+                  onDelete={f => handleSupprimerFichier(m, f)}
+                />
               </div>
               <p style={{ fontSize: 11, color: "#9CA3AF", margin: "3px 0 0", padding: "0 4px" }}>{msgTime(m.date)}</p>
             </div>
@@ -179,6 +213,7 @@ function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc
         <div ref={bottomRef} />
       </div>
       <div style={{ borderTop: "1px solid #E5E7EB", padding: "12px 24px", display: "flex", gap: 10, alignItems: "flex-end", background: "#fff", flexShrink: 0 }}>
+        <FichierPicker files={attachFiles} onChange={setAttachFiles} error={attachError} onErrorChange={setAttachError} />
         <textarea
           value={texte}
           onChange={e => setTexte(e.target.value)}
@@ -190,8 +225,8 @@ function MessagesTab({ clientId, client }: { clientId: string; client: ClientDoc
           onBlur={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#E5E7EB"; }}
         />
         <button
-          onClick={send} disabled={!texte.trim() || sending}
-          style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: !texte.trim() || sending ? "#E5E7EB" : "#0362E3", color: "#fff", cursor: !texte.trim() || sending ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+          onClick={send} disabled={(!texte.trim() && attachFiles.length === 0) || sending}
+          style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: (!texte.trim() && attachFiles.length === 0) || sending ? "#E5E7EB" : "#0362E3", color: "#fff", cursor: (!texte.trim() && attachFiles.length === 0) || sending ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
         >
           <Send size={16} />
         </button>
@@ -573,6 +608,7 @@ function ConversationPanel({ clientId, client, initialTab }: { clientId: string;
 
 function AdminMessagesContent() {
   const { ready } = useRequireSection("messages");
+  const sidebarExpanded = useAdminSidebarExpanded();
   const searchParams = useSearchParams();
 
   const [clients,       setClients]       = useState<ClientDoc[]>([]);
@@ -708,8 +744,9 @@ function AdminMessagesContent() {
 
   return (
     <div style={{
-      position: "fixed", top: 0, left: 56, right: 0, bottom: 0,
+      position: "fixed", top: 0, left: sidebarExpanded ? 220 : 56, right: 0, bottom: 0,
       display: "flex", zIndex: 20,
+      transition: "left 200ms ease-in-out",
     }}>
       {/* ──── Colonne gauche (30%) ──── */}
       <div style={{ width: "30%", minWidth: 270, maxWidth: 360, borderRight: "1px solid #E5E7EB", display: "flex", flexDirection: "column", background: "#fff" }}>

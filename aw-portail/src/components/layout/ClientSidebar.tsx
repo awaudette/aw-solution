@@ -27,6 +27,7 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
   const [expanded, setExpanded]             = useState(false);
   const [contratSigne, setContratSigne]     = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [pendingJournal, setPendingJournal] = useState(0);
   const [clientNom, setClientNom]           = useState("");
   const [clientColor, setClientColor]       = useState("#0362E3");
   const [brandingComplete, setBrandingComplete]   = useState(false);
@@ -82,6 +83,17 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
     });
   }, [clientId]);
 
+  // Badge "Feuille de route" — entrées du journal en attente d'approbation
+  // (Partie 6A). Baisse dès que le client approuve/refuse/demande une
+  // modification (le statut quitte alors "en_attente").
+  useEffect(() => {
+    const q = query(
+      collection(db, "clients", clientId, "journal"),
+      where("statut", "==", "en_attente"),
+    );
+    return onSnapshot(q, (snap) => setPendingJournal(snap.size));
+  }, [clientId]);
+
   // Un seul listener pour les deux conditions issues de roadmap/main
   // (paiement et lancement) — évite un deuxième onSnapshot sur ce document.
   useEffect(() => {
@@ -134,7 +146,9 @@ export default function ClientSidebar({ onExpandedChange }: { onExpandedChange?:
     const href   = `/client/${clientId}/${slug}`;
     const active = pathname === href || pathname.startsWith(`${href}/`);
 
-    const badge = slug === "support" && unreadMessages > 0 ? unreadMessages : 0;
+    const badge =
+      slug === "support" && unreadMessages > 0 ? unreadMessages :
+      slug === "roadmap" && pendingJournal > 0 ? pendingJournal : 0;
 
     return (
       <Link

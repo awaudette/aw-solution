@@ -7,10 +7,11 @@ import {
 } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { createNotification, markActionCompleteFor } from "@/lib/notifications";
-import type { JournalEntry, JournalMessage, JournalStatut } from "@/types/journal";
+import { createNotification } from "@/lib/notifications";
+import type { JournalEntry, JournalStatut } from "@/types/journal";
 import { ETAPES_INIT } from "@/hooks/useRoadmapData";
-import { Plus, Send, X, Upload, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, X, Upload, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { FichiersJoints } from "@/components/ui/FichiersJoints";
 
 const CSS = `@keyframes spin { to { transform: rotate(360deg); } }`;
 
@@ -40,10 +41,6 @@ const ETAPE_LABELS: Record<string, string> = {
 
 function formatDateFr(ts: Timestamp): string {
   return ts.toDate().toLocaleDateString("fr-CA", { day: "numeric", month: "long", year: "numeric" });
-}
-
-function formatTimeFr(ts: Timestamp): string {
-  return ts.toDate().toLocaleString("fr-CA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 /* ── New entry form ─────────────────────────────────────────────────────── */
@@ -84,7 +81,7 @@ function NewEntryForm({ clientId, onClose }: { clientId: string; onClose: () => 
       });
 
       await addDoc(collection(db, "clients", clientId, "messages"), {
-        texte: `Une nouvelle mise à jour est disponible dans votre journal de développement : "${titre.trim()}"`,
+        texte: `Nouvelle mise à jour dans votre journal : "${titre.trim()}" — veuillez l'approuver.`,
         auteur: "AW Solution", auteurRole: "admin", date: now, lu: false,
       });
 
@@ -225,39 +222,18 @@ function NewEntryForm({ clientId, onClose }: { clientId: string; onClose: () => 
 /* ── Admin entry card ────────────────────────────────────────────────────── */
 
 function AdminJournalEntry({ entry, clientId }: { entry: JournalEntry; clientId: string }) {
-  const [conversation,      setConversation]      = useState<JournalMessage[]>([]);
-  const [adminMsg,          setAdminMsg]          = useState("");
-  const [sending,           setSending]           = useState(false);
   const [showRepublishForm, setShowRepublishForm] = useState(false);
   const [republishDesc,     setRepublishDesc]     = useState(entry.description);
   const [republishImages,   setRepublishImages]   = useState<File[]>([]);
   const [republishing,      setRepublishing]      = useState(false);
-  const [convOpen,          setConvOpen]          = useState(false);
+  const [markingVu,         setMarkingVu]         = useState(false);
   const [lightbox,          setLightbox]          = useState<string | null>(null);
   const [isExpanded,        setIsExpanded]        = useState(entry.statut !== "approuve");
   const republishFileRef = useRef<HTMLInputElement>(null);
-  const prevConvLen      = useRef(0);
   const prevStatut       = useRef(entry.statut);
   const cfg = STATUT_CFG[entry.statut];
   const needsAttention = entry.statut === "refuse" || entry.statut === "modification_demandee";
-
-  useEffect(() => {
-    const q = query(
-      collection(db, "clients", clientId, "journal", entry.id, "conversation"),
-      orderBy("timestamp", "asc"),
-    );
-    return onSnapshot(q, snap => {
-      setConversation(snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalMessage)));
-    });
-  }, [clientId, entry.id]);
-
-  /* Auto-expand conversation when new messages arrive */
-  useEffect(() => {
-    if (conversation.length > prevConvLen.current && conversation.length > 0) {
-      setConvOpen(true);
-    }
-    prevConvLen.current = conversation.length;
-  }, [conversation.length]);
+  const needsVu         = needsAttention && !entry.adminVu;
 
   /* Auto-collapse card when entry gets approved */
   useEffect(() => {
@@ -267,27 +243,14 @@ function AdminJournalEntry({ entry, clientId }: { entry: JournalEntry; clientId:
     prevStatut.current = entry.statut;
   }, [entry.statut]);
 
-  async function handleSendMessage() {
-    if (!adminMsg.trim() || sending) return;
-    setSending(true);
+  /* Partie 6B : le ✓ "vu" retire l'entrée des compteurs à traiter sans
+     toucher au statut ni à son étiquette. */
+  async function handleMarquerVu() {
+    if (markingVu) return;
+    setMarkingVu(true);
     try {
-      const now = Timestamp.now();
-      await addDoc(collection(db, "clients", clientId, "journal", entry.id, "conversation"), {
-        auteur: "admin", message: adminMsg.trim(), timestamp: now,
-      });
-      // Cas 4 : admin pose une question → notification client actionRequise
-      const clientSnap = await getDoc(doc(db, "clients", clientId));
-      const clientNom  = clientSnap.data()?.nom ?? "";
-      await createNotification({
-        type: "question_journal", destinataire: "client",
-        clientId, clientNom, auteurRole: "admin",
-        description: `Question dans votre journal : "${entry.titre}" — veuillez répondre.`,
-        lien: `/client/${clientId}/accueil`,
-        actionRequise: true,
-      });
-      setAdminMsg("");
-      setConvOpen(true);
-    } finally { setSending(false); }
+      await updateDoc(doc(db, "clients", clientId, "journal", entry.id), { adminVu: true });
+    } finally { setMarkingVu(false); }
   }
 
   async function handleRepublish() {
@@ -307,20 +270,16 @@ function AdminJournalEntry({ entry, clientId }: { entry: JournalEntry; clientId:
       }
 
       await updateDoc(doc(db, "clients", clientId, "journal", entry.id), {
-        description:       republishDesc.trim(),
-        images:            imageUrls,
-        statut:            "en_attente",
-        raisonClient:      null,
-        commentaireClient: null,
-        lu:                false,
-        version:           entry.version + 1,
-        publishedAt:       now,
-      });
-
-      await addDoc(collection(db, "clients", clientId, "journal", entry.id, "conversation"), {
-        auteur: "admin",
-        message: `Mise à jour republiée — version ${entry.version + 1}.`,
-        timestamp: now,
+        description:          republishDesc.trim(),
+        images:                imageUrls,
+        statut:                "en_attente",
+        raisonClient:          null,
+        raisonClientFichiers:  [],
+        commentaireClient:     null,
+        lu:                    false,
+        version:               entry.version + 1,
+        publishedAt:           now,
+        adminVu:               false,
       });
 
       await addDoc(collection(db, "clients", clientId, "messages"), {
@@ -415,6 +374,21 @@ function AdminJournalEntry({ entry, clientId }: { entry: JournalEntry; clientId:
               Non lu
             </span>
           )}
+          {needsVu && (
+            <button
+              onClick={handleMarquerVu}
+              disabled={markingVu}
+              title="Marquer comme vu — n'affecte pas le statut"
+              style={{
+                display: "flex", alignItems: "center", gap: 4, marginLeft: "auto",
+                fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 6,
+                border: "1px solid #E5E7EB", background: "#fff", color: "#374151",
+                cursor: markingVu ? "not-allowed" : "pointer",
+              }}
+            >
+              <Check size={11} /> Vu
+            </button>
+          )}
         </div>
         <p style={{ fontSize: 14, fontWeight: 600, color: "#0A0A0A", margin: "0 0 2px" }}>{entry.titre}</p>
         <p style={{ fontSize: 11, color: "#9CA3AF", margin: "0 0 10px" }}>{formatDateFr(entry.publishedAt)}</p>
@@ -476,81 +450,9 @@ function AdminJournalEntry({ entry, clientId }: { entry: JournalEntry; clientId:
             💬 Retour client
           </p>
           <p style={{ fontSize: 13, color: "#374151", margin: 0, whiteSpace: "pre-wrap" }}>{entry.raisonClient}</p>
+          <FichiersJoints fichiers={entry.raisonClientFichiers} />
         </div>
       )}
-
-      {/* ── Conversation accordion ── */}
-      <div style={{ borderTop: "1px solid #F3F4F6" }}>
-        <button
-          onClick={() => setConvOpen(o => !o)}
-          style={{
-            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "9px 18px", border: "none", background: "none", cursor: "pointer",
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Conversation{conversation.length > 0 ? ` (${conversation.length})` : ""}
-          </span>
-          {convOpen
-            ? <ChevronUp size={13} color="#9CA3AF" />
-            : <ChevronDown size={13} color="#9CA3AF" />}
-        </button>
-
-        {convOpen && (
-          <div style={{ padding: "0 18px 12px" }}>
-            {conversation.length === 0 ? (
-              <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 10px" }}>Aucun message pour l'instant.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-                {conversation.map(msg => (
-                  <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: msg.auteur === "admin" ? "flex-end" : "flex-start" }}>
-                    <div style={{
-                      maxWidth: "80%", padding: "7px 11px", borderRadius: 10,
-                      background: msg.auteur === "admin" ? "#EFF6FF" : "#F9FAFB",
-                      border: `1px solid ${msg.auteur === "admin" ? "#BFDBFE" : "#E5E7EB"}`,
-                    }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: msg.auteur === "admin" ? "#1D4ED8" : "#374151", margin: "0 0 3px" }}>
-                        {msg.auteur === "admin" ? "AW Solution" : "Client"}
-                      </p>
-                      <p style={{ fontSize: 12, color: "#374151", margin: 0, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{msg.message}</p>
-                      <p style={{ fontSize: 10, color: "#9CA3AF", margin: "4px 0 0", textAlign: msg.auteur === "admin" ? "right" : "left" }}>
-                        {formatTimeFr(msg.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Send message input — only visible when accordion is open */}
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="text" value={adminMsg} onChange={e => setAdminMsg(e.target.value)}
-                placeholder="Envoyer un message au client…"
-                onKeyDown={e => { if (e.key === "Enter") handleSendMessage(); }}
-                style={{
-                  flex: 1, padding: "7px 10px", borderRadius: 8,
-                  border: "1px solid #E5E7EB", fontSize: 12, color: "#374151",
-                  outline: "none", fontFamily: "inherit",
-                }}
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!adminMsg.trim() || sending}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  padding: "7px 12px", borderRadius: 8, border: "none",
-                  background: adminMsg.trim() ? "#0362E3" : "#E5E7EB",
-                  color: adminMsg.trim() ? "#fff" : "#9CA3AF",
-                  cursor: adminMsg.trim() ? "pointer" : "not-allowed", flexShrink: 0,
-                }}
-              >
-                <Send size={12} />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Actions */}
       <div style={{ borderTop: "1px solid #F3F4F6", padding: "12px 18px" }}>
         {/* Republish form */}

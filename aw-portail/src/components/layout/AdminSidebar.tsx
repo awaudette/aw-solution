@@ -8,11 +8,20 @@ import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ADMIN_PORTAL_SECTIONS } from "@/config/adminSections";
 import { useAdminAccess } from "@/components/admin/AdminAccessProvider";
+import { useAdminSidebarExpandedSetter } from "@/components/layout/AdminSidebarContext";
 
 export default function AdminSidebar() {
   const { hasAccess } = useAdminAccess();
-  const [expanded,     setExpanded]     = useState(false);
+  const publishExpanded = useAdminSidebarExpandedSetter();
+  const [expanded,     setExpandedState] = useState(false);
+  function setExpanded(v: boolean) {
+    setExpandedState(v);
+    publishExpanded(v);
+  }
   const [unreadCount,  setUnreadCount]  = useState(0);
+  // Partie 6B — total, tous clients, des entrées de journal refusées/en
+  // modification demandée non encore marquées "vu" par un admin.
+  const [journalAttentionCount, setJournalAttentionCount] = useState(0);
   const pathname = usePathname();
   const router   = useRouter();
 
@@ -21,13 +30,19 @@ export default function AdminSidebar() {
   // visible (ALWAYS_ACCESSIBLE_SECTIONS, appliqué dans hasAccess).
   const visibleSections = ADMIN_PORTAL_SECTIONS.filter((s) => hasAccess(s.key));
 
-  // Badge temps réel — messages non lus, via abonnements per-client
+  // Badges temps réel — messages non lus + journal à traiter, via
+  // abonnements per-client
   useEffect(() => {
     const perClientUnsubs: Record<string, () => void> = {};
     const counts: Record<string, number> = {};
+    const journalUnsubs: Record<string, () => void> = {};
+    const journalCounts: Record<string, number> = {};
 
     function recalc() {
       setUnreadCount(Object.values(counts).reduce((s, n) => s + n, 0));
+    }
+    function recalcJournal() {
+      setJournalAttentionCount(Object.values(journalCounts).reduce((s, n) => s + n, 0));
     }
 
     // 1. Observer la liste des clients
@@ -42,26 +57,45 @@ export default function AdminSidebar() {
           delete counts[id];
         }
       });
+      Object.keys(journalUnsubs).forEach(id => {
+        if (!ids.has(id)) {
+          journalUnsubs[id]();
+          delete journalUnsubs[id];
+          delete journalCounts[id];
+        }
+      });
 
       // Ajouter un abonnement par nouveau client
       snap.docs.forEach(clientDoc => {
         const cid = clientDoc.id;
-        if (perClientUnsubs[cid]) return;
-        const q = query(
-          collection(db, "clients", cid, "messages"),
-          where("auteurRole", "==", "client"),
-          where("lu", "==", false)
-        );
-        perClientUnsubs[cid] = onSnapshot(q, msgSnap => {
-          counts[cid] = msgSnap.size;
-          recalc();
-        });
+        if (!perClientUnsubs[cid]) {
+          const q = query(
+            collection(db, "clients", cid, "messages"),
+            where("auteurRole", "==", "client"),
+            where("lu", "==", false)
+          );
+          perClientUnsubs[cid] = onSnapshot(q, msgSnap => {
+            counts[cid] = msgSnap.size;
+            recalc();
+          });
+        }
+        if (!journalUnsubs[cid]) {
+          const jq = query(
+            collection(db, "clients", cid, "journal"),
+            where("statut", "in", ["refuse", "modification_demandee"]),
+          );
+          journalUnsubs[cid] = onSnapshot(jq, jSnap => {
+            journalCounts[cid] = jSnap.docs.filter(d => !d.data().adminVu).length;
+            recalcJournal();
+          });
+        }
       });
     });
 
     return () => {
       unsubClients();
       Object.values(perClientUnsubs).forEach(u => u());
+      Object.values(journalUnsubs).forEach(u => u());
     };
   }, []);
 
@@ -102,8 +136,11 @@ export default function AdminSidebar() {
       <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-hidden">
         {visibleSections.map(({ key, label, icon: Icon, href }) => {
           const active  = pathname === href || (href !== "/admin" && pathname.startsWith(href));
-          const isMsg   = href === "/admin/messages";
-          const showBadge = isMsg && unreadCount > 0;
+          const isMsg     = href === "/admin/messages";
+          const isClients = href === "/admin/clients";
+          const badgeCount = isMsg ? unreadCount : isClients ? journalAttentionCount : 0;
+          const badgeColor = isMsg ? "#DC2626" : "#F59E0B";
+          const showBadge  = badgeCount > 0;
 
           return (
             <Link
@@ -135,13 +172,13 @@ export default function AdminSidebar() {
                     style={{
                       position: "absolute", top: -5, right: -5,
                       minWidth: 14, height: 14, borderRadius: 7,
-                      background: "#DC2626", color: "#fff",
+                      background: badgeColor, color: "#fff",
                       fontSize: 9, fontWeight: 700,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       padding: "0 3px", lineHeight: 1,
                     }}
                   >
-                    {unreadCount > 99 ? "99+" : unreadCount}
+                    {badgeCount > 99 ? "99+" : badgeCount}
                   </span>
                 )}
               </div>
@@ -153,13 +190,13 @@ export default function AdminSidebar() {
                     <span
                       style={{
                         minWidth: 18, height: 18, borderRadius: 9,
-                        background: "#DC2626", color: "#fff",
+                        background: badgeColor, color: "#fff",
                         fontSize: 10, fontWeight: 700,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         padding: "0 4px", flexShrink: 0,
                       }}
                     >
-                      {unreadCount > 99 ? "99+" : unreadCount}
+                      {badgeCount > 99 ? "99+" : badgeCount}
                     </span>
                   )}
                 </>
@@ -168,7 +205,7 @@ export default function AdminSidebar() {
               {!expanded && (
                 <div className="absolute left-14 px-2 py-1 bg-gray-900 text-white text-xs rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                   {label}
-                  {showBadge ? ` (${unreadCount})` : ""}
+                  {showBadge ? ` (${badgeCount})` : ""}
                 </div>
               )}
             </Link>

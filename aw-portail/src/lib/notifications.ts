@@ -86,25 +86,14 @@ async function writeOne(
     actionRequise:    input.actionRequise ?? false,
     actionCompletee:  false,
   });
-
-  // Auto-message dans la messagerie client pour les actions requises côté client
-  if (input.destinataire === "client" && input.actionRequise) {
-    await addDoc(collection(db, "clients", input.clientId, "messages"), {
-      texte:      `${input.description} — Voir : ${input.lien}`,
-      auteur:     "AW Solution",
-      auteurRole: "admin",
-      date:       now,
-      lu:         false,
-    });
-  }
 }
 
 // ─── API publique ─────────────────────────────────────────────────────────────
 
 /**
- * Crée une notification dans la collection /notifications.
- * Si destinataire=="client" && actionRequise, crée aussi un message dans
- * clients/{clientId}/messages pour que le client le voie dans son support.
+ * Crée une notification dans la collection /notifications. N'écrit rien dans
+ * clients/{clientId}/messages — un éventuel message correspondant est à la
+ * charge de l'appelant (voir AdminJournalManager.tsx pour un exemple).
  */
 export async function createNotification(input: NotificationInput): Promise<void> {
   const now = Timestamp.now();

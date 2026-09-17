@@ -68,19 +68,36 @@ function RapportCard({ r }: { r: RapportDoc }) {
         Généré le {genDate}
       </div>
       <div style={{ display: "flex", gap: 10 }}>
-        <button style={{
-          padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-          background: col, color: "white", border: "none", cursor: "pointer",
-        }}>
-          Voir le rapport
-        </button>
-        {r.pdfUrl && (
-          <button style={{
+        {r.pdfUrl ? (
+          <a
+            href={r.pdfUrl} target="_blank" rel="noopener noreferrer"
+            style={{
+              padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              background: col, color: "white", border: "none", cursor: "pointer",
+              textDecoration: "none", display: "inline-flex", alignItems: "center",
+            }}
+          >
+            Voir le rapport
+          </a>
+        ) : (
+          <button disabled style={{
             padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-            background: "white", color: col, border: `1px solid ${col}`, cursor: "pointer",
+            background: "#E5E7EB", color: "#9CA3AF", border: "none", cursor: "not-allowed",
           }}>
-            ↓ PDF
+            Voir le rapport
           </button>
+        )}
+        {r.pdfUrl && (
+          <a
+            href={r.pdfUrl} download target="_blank" rel="noopener noreferrer"
+            style={{
+              padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              background: "white", color: col, border: `1px solid ${col}`, cursor: "pointer",
+              textDecoration: "none", display: "inline-flex", alignItems: "center",
+            }}
+          >
+            ↓ PDF
+          </a>
         )}
       </div>
 
